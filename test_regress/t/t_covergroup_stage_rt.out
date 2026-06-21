@@ -1,0 +1,61 @@
+cg_bin_expr.be4.low: 2
+cg_bin_expr.be4.one: 1
+cg_bin_expr.be4.zero: 1
+cg_cross_arr.cp_a.av[0]: 3
+cg_cross_arr.cp_a.av[1]: 3
+cg_cross_arr.cp_b.bv[0]: 2
+cg_cross_arr.cp_b.bv[1]: 2
+cg_cross_arr.cp_b.bv[2]: 2
+cg_cross_arr.cr.av_0__x_bv_0_ [cross]: 1
+cg_cross_arr.cr.av_0__x_bv_1_ [cross]: 1
+cg_cross_arr.cr.av_0__x_bv_2_ [cross]: 1
+cg_cross_arr.cr.av_1__x_bv_0_ [cross]: 1
+cg_cross_arr.cr.av_1__x_bv_1_ [cross]: 1
+cg_cross_arr.cr.av_1__x_bv_2_ [cross]: 1
+cg_default_arr.cp.known: 1
+cg_default_arr.cp.others[1] [default]: 1
+cg_default_arr.cp.others[2] [default]: 1
+cg_default_arr.cp.others[3] [default]: 1
+cg_default_iff.cp.def: 1
+cg_default_iff.cp.known: 0
+cg_default_iff.cp2.z: 2
+cg_default_iff.cr.known_x_z [cross]: 0
+cg_default_resolve.cp.arr[0]: 0
+cg_default_resolve.cp.arr[1]: 0
+cg_default_resolve.cp.arr[2]: 0
+cg_default_resolve.cp.arr[3]: 1
+cg_default_resolve.cp.def [default]: 1
+cg_dollar.cp.ds[0]: 1
+cg_dollar.cp.ds[1]: 1
+cg_dollar.cp.ds[2]: 1
+cg_empty_fixed.cp.fe[0]: 1
+cg_empty_fixed.cp.fe[1]: 1
+cg_empty_fixed.cp.fe[2]: 1
+cg_ignore_overlap.cp.ign [ignore]: 1
+cg_ignore_overlap.cp.keep: 1
+cg_implicit_range.cp.hi[4]: 1
+cg_implicit_range.cp.hi[5]: 1
+cg_implicit_range.cp.hi[6]: 1
+cg_implicit_range.cp.hi[7]: 1
+cg_nonarray_resolve.cp.ok: 1
+cg_open.cp.ds[0]: 1
+cg_open.cp.ds[1]: 1
+cg_open.cp.ds[2]: 1
+cg_signed_cast.cp.neg_one[-1]: 1
+cg_trans3_iff.cp.t: 1
+cg_trans_arr.cp.ta[0=>2]: 1
+cg_trans_arr.cp.ta[0=>3]: 1
+cg_trans_arr.cp.ta[1=>2]: 1
+cg_trans_arr.cp.ta[1=>3]: 1
+cg_trans_iff.cp.t: 1
+cg_var_implicit.cp.hi[4]: 1
+cg_var_implicit.cp.hi[5]: 1
+cg_var_implicit.cp.hi[6]: 1
+cg_var_implicit.cp.hi[7]: 1
+cg_wide.cp.lo[0]: 1
+cg_wide.cp.lo[1]: 1
+cg_wild_arr.cp.w[12]: 1
+cg_wild_arr.cp.w[13]: 1
+cg_wild_arr.cp.w[14]: 1
+cg_wild_arr.cp.w[15]: 1
+cg_with_iff.cp.wb: 1

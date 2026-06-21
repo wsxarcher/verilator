@@ -54,6 +54,14 @@ module t;
     }
   endgroup
 
+  // per-bin iff: gates one bin only, leaving sibling bins ungated
+  covergroup cg_bin_iff;
+    cp: coverpoint value {
+      bins always_b = {1};  // no per-bin iff -> always counts
+      bins gated_b = {2} iff (enable);  // only counts when enable is set
+    }
+  endgroup
+
   // iff on 2-step transition
   covergroup cg_trans2_iff;
     cp: coverpoint value iff (enable) {bins t2 = (1 => 2);}
@@ -99,6 +107,7 @@ module t;
   cg_iff cg1 = new;
   cg_default_iff cg2 = new;
   cg_array_iff cg3 = new;
+  cg_bin_iff cg3b = new;
   cg_trans2_iff cg4 = new;
   cg_trans3_iff cg5 = new;
   cg_and ca = new;
@@ -146,6 +155,19 @@ module t;
     enable = 0;
     value = 6;
     cg3.sample();  // gated
+
+    // cg3b: per-bin iff -- always_b counts regardless of enable; gated_b only when enable
+    enable = 0;
+    value = 1;
+    cg3b.sample();  // always_b hit
+    `checkr(cg3b.get_inst_coverage(), 50.0);
+    value = 2;
+    cg3b.sample();  // gated_b gated off -> not counted
+    `checkr(cg3b.get_inst_coverage(), 50.0);
+    enable = 1;
+    value = 2;
+    cg3b.sample();  // gated_b now counts
+    `checkr(cg3b.get_inst_coverage(), 100.0);
 
     // cg4: 2-step transition with iff
     enable = 1;

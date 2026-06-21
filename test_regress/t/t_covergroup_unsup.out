@@ -21,9 +21,6 @@
 %Warning-COVERIGN: t/t_covergroup_unsup.v:113:31: Unsupported: 'iff' in coverage cross
   113 |     my_cg_id: cross a, b iff (!rst);
       |                               ^
-%Warning-COVERIGN: t/t_covergroup_unsup.v:123:14: Unsupported: 'bins' explicit array size (treated as '[]')
-  123 |     { bins ba[2] = {a}; }
-      |              ^
 %Warning-COVERIGN: t/t_covergroup_unsup.v:127:21: Unsupported: 'with' in cover bin (bin created without filter)
   127 |     { bins ba = {a} with ( b ); }
       |                     ^~~~

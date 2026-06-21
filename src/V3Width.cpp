@@ -1969,8 +1969,8 @@ class WidthVisitor final : public VNVisitor {
                 V3Const::constifyEdit(itemp);  // itemp may change
             }
         }
-        userIterateAndNext(nodep->iffp(), nullptr);
-        userIterateAndNext(nodep->arraySizep(), nullptr);
+        if (nodep->iffp()) iterateCheckBool(nodep, "iff condition", nodep->iffp(), BOTH);
+        userIterateAndNext(nodep->arraySizep(), WidthVP{SELF, BOTH}.p());
         userIterateAndNext(nodep->transp(), nullptr);
     }
     void visit(AstPow* nodep) override {

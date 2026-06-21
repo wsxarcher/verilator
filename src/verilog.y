@@ -136,6 +136,36 @@ const VBasicDTypeKwd LOGIC_IMPLICIT = VBasicDTypeKwd::LOGIC_IMPLICIT;
             if (nodep) nodep->deleteTree(); \
     }
 
+static void COVERBIN_ARRAY(AstCoverBin* binp, AstNodeExpr* sizep) {
+    if (!sizep) return;
+    binp->isArray(true);
+    if (VN_IS(sizep, Unbounded)) {
+        DEL(sizep);
+    } else {
+        binp->arraySizep(sizep);
+    }
+}
+
+static void COVERBIN_TRANS_ARRAY(AstCoverBin* binp, AstNodeExpr* sizep) {
+    if (!sizep) return;
+    binp->isArray(true);
+    if (!VN_IS(sizep, Unbounded)) {
+        BBCOVERIGN(sizep->fileline(),
+                   "Unsupported: explicit array size in transition cover bin (treated as '[]')");
+    }
+    DEL(sizep);
+}
+
+// Attach an optional per-bin 'iff (expr)' guard (IEEE 1800-2023 19.5) to a cover bin.
+static void COVERBIN_IFF(AstCoverBin* binp, AstNodeExpr* iffp) {
+    if (iffp) binp->iffp(iffp);
+}
+
+static AstNodeExpr* COVERPOINT_CAST(FileLine* fl, AstNodeExpr* exprp, AstNodeDType* dtypep) {
+    return dtypep ? static_cast<AstNodeExpr*>(new AstCast{fl, exprp, VFlagChildDType{}, dtypep})
+                  : exprp;
+}
+
 static void ERRSVKWD(FileLine* fileline, const string& tokname) {
     static int s_toldonce = 0;
     fileline->v3error(
@@ -7106,20 +7136,27 @@ cover_point<nodep>:  // ==IEEE: cover_point
         |       id/*cover_point_id*/ ':' yCOVERPOINT expr iffE bins_or_empty
                         { $$ = new AstCoverpoint{$<fl>3, *$1, $4, $5, $6}; }
         //                      // data_type_or_implicit expansion
+        //                      // IEEE 1800-2023 19.5.7(a)/19.5: with a coverpoint type the
+        //                      // sampled value (and bin domain) is that type, so cast the
+        //                      // expression to it instead of using its self-determined type.
         |       data_type id/*cover_point_id*/ ':' yCOVERPOINT expr iffE bins_or_empty
-                        { $$ = new AstCoverpoint{$<fl>4, *$2, $5, $6, $7};
-                          DEL($1); }
+                        { $$ = new AstCoverpoint{$<fl>4, *$2,
+                              new AstCast{$<fl>4, $5, VFlagChildDType{}, $1}, $6, $7}; }
         |       yVAR data_type id/*cover_point_id*/ ':' yCOVERPOINT expr iffE bins_or_empty
-                        { $$ = new AstCoverpoint{$<fl>5, *$3, $6, $7, $8};
-                          DEL($2); }
+                        { $$ = new AstCoverpoint{$<fl>5, *$3,
+                              new AstCast{$<fl>5, $6, VFlagChildDType{}, $2}, $7, $8}; }
         |       yVAR implicit_typeE id/*cover_point_id*/ ':' yCOVERPOINT expr iffE bins_or_empty
-                        { $$ = new AstCoverpoint{$<fl>5, *$3, $6, $7, $8};
-                          DEL($2); }
+                        { $$ = new AstCoverpoint{$<fl>5, *$3,
+                              COVERPOINT_CAST($<fl>5, $6, $2), $7, $8}; }
         |       signingE rangeList id/*cover_point_id*/ ':' yCOVERPOINT expr iffE bins_or_empty
-                        { $$ = new AstCoverpoint{$<fl>5, *$3, $6, $7, $8};
-                          DEL($2); }
+                        { AstNodeDType* const dtp
+                              = GRAMMARP->addRange(new AstBasicDType{$<fl>5, LOGIC_IMPLICIT, $1}, $2, true);
+                          $$ = new AstCoverpoint{$<fl>5, *$3,
+                              new AstCast{$<fl>5, $6, VFlagChildDType{}, dtp}, $7, $8}; }
         |       signing id/*cover_point_id*/ ':' yCOVERPOINT expr iffE bins_or_empty
-                        { $$ = new AstCoverpoint{$<fl>4, *$2, $5, $6, $7}; }
+                        { AstNodeDType* const dtp = new AstBasicDType{$<fl>4, LOGIC_IMPLICIT, $1};
+                          $$ = new AstCoverpoint{$<fl>4, *$2,
+                              new AstCast{$<fl>4, $5, VFlagChildDType{}, dtp}, $6, $7}; }
         //                      // IEEE-2012:
         |       bins_or_empty                           { $$ = $1; }
         ;
@@ -7153,8 +7190,8 @@ bins_or_options<nodep>:  // ==IEEE: bins_or_options
         //                      // Can't use wildcardE as results in conflicts
         |       yBINS idAny/*bin_identifier*/ bins_orBraE '=' '{' range_list '}' iffE
                         { AstCoverBin* const binp = new AstCoverBin{$<fl>2, *$2, $6, false, false};
-                          if ($3) binp->isArray(true);
-                          $$ = binp; DEL($8); }
+                          COVERBIN_ARRAY(binp, $3);
+                          COVERBIN_IFF(binp, $8); $$ = binp; }
         |       yBINS idAny/*bin_identifier*/ '[' cgexpr ']' iffE
                         { // Check for automatic bins: bins auto[N]
                           if (*$2 == "auto") {
@@ -7168,59 +7205,65 @@ bins_or_options<nodep>:  // ==IEEE: bins_or_options
                         }
         |       yIGNORE_BINS idAny/*bin_identifier*/ bins_orBraE '=' '{' range_list '}' iffE
                         { AstCoverBin* const binp = new AstCoverBin{$<fl>2, *$2, $6, true, false};
-                          if ($3) binp->isArray(true);
-                          $$ = binp; DEL($8); }
+                          COVERBIN_ARRAY(binp, $3);
+                          COVERBIN_IFF(binp, $8); $$ = binp; }
         |       yILLEGAL_BINS idAny/*bin_identifier*/ bins_orBraE '=' '{' range_list '}' iffE
                         { AstCoverBin* const binp = new AstCoverBin{$<fl>2, *$2, $6, false, true};
-                          if ($3) binp->isArray(true);
-                          $$ = binp; DEL($8); }
+                          COVERBIN_ARRAY(binp, $3);
+                          COVERBIN_IFF(binp, $8); $$ = binp; }
         |       yBINS idAny/*bin_identifier*/ bins_orBraE '=' '{' range_list '}' yWITH__PAREN '(' cgexpr ')' iffE
                         { AstCoverBin* const binp = new AstCoverBin{$<fl>2, *$2, $6, false, false};
+                          COVERBIN_ARRAY(binp, $3);
                           BBCOVERIGN($<fl>8, "Unsupported: 'with' in cover bin (bin created without filter)");
-                          DEL($10, $12); $$ = binp; }
+                          COVERBIN_IFF(binp, $12); DEL($10); $$ = binp; }
         |       yIGNORE_BINS idAny/*bin_identifier*/ bins_orBraE '=' '{' range_list '}' yWITH__PAREN '(' cgexpr ')' iffE
                         { AstCoverBin* const binp = new AstCoverBin{$<fl>2, *$2, $6, true, false};
+                          COVERBIN_ARRAY(binp, $3);
                           BBCOVERIGN($<fl>8, "Unsupported: 'with' in cover bin (bin created without filter)");
-                          DEL($10, $12); $$ = binp; }
+                          COVERBIN_IFF(binp, $12); DEL($10); $$ = binp; }
         |       yILLEGAL_BINS idAny/*bin_identifier*/ bins_orBraE '=' '{' range_list '}' yWITH__PAREN '(' cgexpr ')' iffE
                         { AstCoverBin* const binp = new AstCoverBin{$<fl>2, *$2, $6, false, true};
+                          COVERBIN_ARRAY(binp, $3);
                           BBCOVERIGN($<fl>8, "Unsupported: 'with' in cover bin (bin created without filter)");
-                          DEL($10, $12); $$ = binp; }
+                          COVERBIN_IFF(binp, $12); DEL($10); $$ = binp; }
         |       yBINS idAny/*bin_identifier*/ bins_orBraE '=' id/*cover_point_id*/ yWITH__PAREN '(' cgexpr ')' iffE
-                        { $$ = nullptr; BBCOVERIGN($<fl>6, "Unsupported: 'with' in cover bin"); DEL($8, $10); }
+                        { $$ = nullptr; BBCOVERIGN($<fl>6, "Unsupported: 'with' in cover bin"); DEL($3, $8, $10); }
         |       yIGNORE_BINS idAny/*bin_identifier*/ bins_orBraE '=' id/*cover_point_id*/ yWITH__PAREN '(' cgexpr ')' iffE
-                        { $$ = nullptr; BBCOVERIGN($<fl>6, "Unsupported: 'with' in cover bin"); DEL($8, $10); }
+                        { $$ = nullptr; BBCOVERIGN($<fl>6, "Unsupported: 'with' in cover bin"); DEL($3, $8, $10); }
         |       yILLEGAL_BINS idAny/*bin_identifier*/ bins_orBraE '=' id/*cover_point_id*/ yWITH__PAREN '(' cgexpr ')' iffE
-                        { $$ = nullptr; BBCOVERIGN($<fl>6, "Unsupported: 'with' in cover bin"); DEL($8, $10); }
+                        { $$ = nullptr; BBCOVERIGN($<fl>6, "Unsupported: 'with' in cover bin"); DEL($3, $8, $10); }
         |       yWILDCARD yBINS idAny/*bin_identifier*/ bins_orBraE '=' '{' range_list '}' iffE
-                        { $$ = new AstCoverBin{$<fl>3, *$3, $7, false, false, true};
-                          DEL($9); }
+                        { AstCoverBin* const binp = new AstCoverBin{$<fl>3, *$3, $7, false, false, true};
+                          COVERBIN_ARRAY(binp, $4);
+                          COVERBIN_IFF(binp, $9); $$ = binp; }
         |       yWILDCARD yIGNORE_BINS idAny/*bin_identifier*/ bins_orBraE '=' '{' range_list '}' iffE
-                        { $$ = new AstCoverBin{$<fl>3, *$3, $7, true, false, true};
-                          DEL($9); }
+                        { AstCoverBin* const binp = new AstCoverBin{$<fl>3, *$3, $7, true, false, true};
+                          COVERBIN_ARRAY(binp, $4);
+                          COVERBIN_IFF(binp, $9); $$ = binp; }
         |       yWILDCARD yILLEGAL_BINS idAny/*bin_identifier*/ bins_orBraE '=' '{' range_list '}' iffE
-                        { $$ = new AstCoverBin{$<fl>3, *$3, $7, false, true, true};
-                          DEL($9); }
+                        { AstCoverBin* const binp = new AstCoverBin{$<fl>3, *$3, $7, false, true, true};
+                          COVERBIN_ARRAY(binp, $4);
+                          COVERBIN_IFF(binp, $9); $$ = binp; }
         |       yWILDCARD yBINS idAny/*bin_identifier*/ bins_orBraE '=' '{' range_list '}' yWITH__PAREN '(' cgexpr ')' iffE
-                        { $$ = nullptr; BBCOVERIGN($<fl>9, "Unsupported: 'with' in wildcard cover bin"); DEL($7, $11, $13); }
+                        { $$ = nullptr; BBCOVERIGN($<fl>9, "Unsupported: 'with' in wildcard cover bin"); DEL($4, $7, $11, $13); }
         |       yWILDCARD yIGNORE_BINS idAny/*bin_identifier*/ bins_orBraE '=' '{' range_list '}' yWITH__PAREN '(' cgexpr ')' iffE
-                        { $$ = nullptr; BBCOVERIGN($<fl>9, "Unsupported: 'with' in wildcard cover bin"); DEL($7, $11, $13); }
+                        { $$ = nullptr; BBCOVERIGN($<fl>9, "Unsupported: 'with' in wildcard cover bin"); DEL($4, $7, $11, $13); }
         |       yWILDCARD yILLEGAL_BINS idAny/*bin_identifier*/ bins_orBraE '=' '{' range_list '}' yWITH__PAREN '(' cgexpr ')' iffE
-                        { $$ = nullptr; BBCOVERIGN($<fl>9, "Unsupported: 'with' in wildcard cover bin"); DEL($7, $11, $13); }
+                        { $$ = nullptr; BBCOVERIGN($<fl>9, "Unsupported: 'with' in wildcard cover bin"); DEL($4, $7, $11, $13); }
         //
         //                      // cgexpr part of trans_list
         |       yBINS idAny/*bin_identifier*/ bins_orBraE '=' trans_list iffE
-                        { FileLine* isArray = $<fl>3;
-                          $$ = new AstCoverBin{$<fl>2, *$2, static_cast<AstCoverTransSet*>($5), VCoverBinsType{VCoverBinsType::BINS_TRANSITION}, isArray != nullptr};
-                          DEL($6); }
+                        { AstCoverBin* const binp = new AstCoverBin{$<fl>2, *$2, static_cast<AstCoverTransSet*>($5), VCoverBinsType{VCoverBinsType::BINS_TRANSITION}, $3 != nullptr};
+                          COVERBIN_TRANS_ARRAY(binp, $3);
+                          COVERBIN_IFF(binp, $6); $$ = binp; }
         |       yIGNORE_BINS idAny/*bin_identifier*/ bins_orBraE '=' trans_list iffE
-                        { FileLine* isArray = $<fl>3;
-                          $$ = new AstCoverBin{$<fl>2, *$2, static_cast<AstCoverTransSet*>($5), VCoverBinsType{VCoverBinsType::BINS_IGNORE}, isArray != nullptr};
-                          DEL($6); }
+                        { AstCoverBin* const binp = new AstCoverBin{$<fl>2, *$2, static_cast<AstCoverTransSet*>($5), VCoverBinsType{VCoverBinsType::BINS_IGNORE}, $3 != nullptr};
+                          COVERBIN_TRANS_ARRAY(binp, $3);
+                          COVERBIN_IFF(binp, $6); $$ = binp; }
         |       yILLEGAL_BINS idAny/*bin_identifier*/ bins_orBraE '=' trans_list iffE
-                        { FileLine* isArray = $<fl>3;
-                          $$ = new AstCoverBin{$<fl>2, *$2, static_cast<AstCoverTransSet*>($5), VCoverBinsType{VCoverBinsType::BINS_ILLEGAL}, isArray != nullptr};
-                          DEL($6); }
+                        { AstCoverBin* const binp = new AstCoverBin{$<fl>2, *$2, static_cast<AstCoverTransSet*>($5), VCoverBinsType{VCoverBinsType::BINS_ILLEGAL}, $3 != nullptr};
+                          COVERBIN_TRANS_ARRAY(binp, $3);
+                          COVERBIN_IFF(binp, $6); $$ = binp; }
         |       yWILDCARD yBINS idAny/*bin_identifier*/ bins_orBraE '=' trans_list iffE
                         { $$ = nullptr; BBCOVERIGN($<fl>1, "Unsupported: 'wildcard' transition list in cover bin"); DEL($6, $7);}
         |       yWILDCARD yIGNORE_BINS idAny/*bin_identifier*/ bins_orBraE '=' trans_list iffE
@@ -7229,14 +7272,14 @@ bins_or_options<nodep>:  // ==IEEE: bins_or_options
                         { $$ = nullptr; BBCOVERIGN($<fl>1, "Unsupported: 'wildcard' transition list in cover bin"); DEL($6, $7);}
         //
         |       yBINS idAny/*bin_identifier*/ bins_orBraE '=' yDEFAULT iffE
-                        { $$ = new AstCoverBin{$<fl>2, *$2, VCoverBinsType::BINS_DEFAULT};
-                          DEL($6); }
+                        { AstCoverBin* const binp = new AstCoverBin{$<fl>2, *$2, VCoverBinsType::BINS_DEFAULT};
+                          COVERBIN_ARRAY(binp, $3); COVERBIN_IFF(binp, $6); $$ = binp; }
         |       yIGNORE_BINS idAny/*bin_identifier*/ bins_orBraE '=' yDEFAULT iffE
-                        { $$ = new AstCoverBin{$<fl>2, *$2, VCoverBinsType::BINS_IGNORE};
-                          DEL($6); }
+                        { AstCoverBin* const binp = new AstCoverBin{$<fl>2, *$2, VCoverBinsType::BINS_IGNORE};
+                          COVERBIN_ARRAY(binp, $3); COVERBIN_IFF(binp, $6); $$ = binp; }
         |       yILLEGAL_BINS idAny/*bin_identifier*/ bins_orBraE '=' yDEFAULT iffE
-                        { $$ = new AstCoverBin{$<fl>2, *$2, VCoverBinsType::BINS_ILLEGAL};
-                          DEL($6); }
+                        { AstCoverBin* const binp = new AstCoverBin{$<fl>2, *$2, VCoverBinsType::BINS_ILLEGAL};
+                          COVERBIN_ARRAY(binp, $3); COVERBIN_IFF(binp, $6); $$ = binp; }
         |       yBINS idAny/*bin_identifier*/ bins_orBraE '=' yDEFAULT ySEQUENCE iffE
                         { $$ = nullptr; BBCOVERIGN($<fl>6, "Unsupported: 'sequence' in default cover bin"); DEL($7); }
         |       yIGNORE_BINS idAny/*bin_identifier*/ bins_orBraE '=' yDEFAULT ySEQUENCE iffE
@@ -7245,10 +7288,14 @@ bins_or_options<nodep>:  // ==IEEE: bins_or_options
                         { $$ = nullptr; BBCOVERIGN($<fl>6, "Unsupported: 'sequence' in default cover bin"); DEL($7); }
         ;
 
-bins_orBraE<fl>:  // IEEE: part of bins_or_options: returns fileline (abuse for boolean flag)
+bins_orBraE<nodeExprp>:  // IEEE: part of bins_or_options: optional array size
                 /* empty */                             { $$ = nullptr; }
-        |       '[' ']'                                 { $$ = $<fl>1; /* Mark as array */ }
-        |       '[' cgexpr ']'                          { BBCOVERIGN($<fl>1, "Unsupported: 'bins' explicit array size (treated as '[]')"); DEL($2); $$ = $<fl>1; }
+        |       '[' ']'                                 { $$ = new AstUnbounded{$<fl>1}; /* Mark as unsized array */ }
+        //                      // IEEE 1800-2023 19.5.1 reserves '[]' for an open array of
+        //                      // bins.  A '$' size (which also parses to AstUnbounded) is
+        //                      // accepted as equivalent to '[]'; COVERBIN_ARRAY treats any
+        //                      // AstUnbounded as an open array.  The parser only builds AST.
+        |       '[' cgexpr ']'                          { $$ = $2; }
         ;
 
 trans_list<nodep>:  // ==IEEE: trans_list

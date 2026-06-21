@@ -5,7 +5,7 @@ cg2.cp_only_default.all [default]: 4
 cg3.data.bad [ignore]: 1
 cg3.data.err [illegal]: 0
 cg3.data.normal: 2
-cg3.data.other [default]: 2
+cg3.data.other [default]: 1
 cg4.cp_idx.auto_0: 1
 cg4.cp_idx.auto_1: 1
 cg4.cp_idx.auto_2: 1

@@ -21,9 +21,6 @@
 %Warning-COVERIGN: t/t_covergroup_unsup.v:113:31: Unsupported: 'iff' in coverage cross
   113 |     my_cg_id: cross a, b iff (!rst);
       |                               ^
-%Warning-COVERIGN: t/t_covergroup_unsup.v:123:14: Unsupported: 'bins' explicit array size (treated as '[]')
-  123 |     { bins ba[2] = {a}; }
-      |              ^
 %Warning-COVERIGN: t/t_covergroup_unsup.v:127:21: Unsupported: 'with' in cover bin (bin created without filter)
   127 |     { bins ba = {a} with ( b ); }
       |                     ^~~~
@@ -274,6 +271,10 @@
       |               ^~~~~~~~~~
 %Warning-WIDTHTRUNC: t/t_covergroup_unsup.v:94:16: Logical operator COVERPOINT 'id' expects 1 bit on the iff condition, but iff condition's VARREF 'b' generates 32 bits.
                                                  : ... note: In instance 't'
+   94 |     signed id: coverpoint a iff (b);
+      |                ^~~~~~~~~~
+%Warning-COVERIGN: t/t_covergroup_unsup.v:94:16: Coverage array bin 'auto_1' has value(s) outside the coverpoint domain; the out-of-domain value(s) are excluded (IEEE 1800-2023 19.5.7).
+                                               : ... note: In instance 't'
    94 |     signed id: coverpoint a iff (b);
       |                ^~~~~~~~~~
 %Warning-COVERIGN: t/t_covergroup_unsup.v:98:11: Unsupported: cross of 'a' which is not a coverpoint (implicit coverpoint)

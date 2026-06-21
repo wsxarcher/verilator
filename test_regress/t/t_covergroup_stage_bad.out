@@ -1,0 +1,60 @@
+%Error: t/t_covergroup_stage_bad.v:23:31: Unsupported: covergroup array bin 'huge_size' has more than 65536 bins.
+                                        : ... note: In instance 't'
+   23 |     cp: coverpoint data {bins huge_size[64'd4294967296] = {1};}
+      |                               ^~~~~~~~~
+        ... See the manual at https://verilator.org/verilator_doc.html?v=latest for more assistance.
+%Error: t/t_covergroup_stage_bad.v:26:31: Covergroup array bins size must be a positive two-state constant.
+                                        : ... note: In instance 't'
+   26 |     cp: coverpoint data {bins neg_size[-1] = {1};}
+      |                               ^~~~~~~~
+%Error: t/t_covergroup_stage_bad.v:29:33: Unsupported: covergroup array bin 'all17' expands to more than 65536 values.
+                                        : ... note: In instance 't'
+   29 |     cp: coverpoint data17 {bins all17[] = {[0 : $]};}
+      |                                 ^~~~~
+%Error: t/t_covergroup_stage_bad.v:32:33: Unsupported: covergroup array bin 'all65' '$' range on coverpoint wider than 64 bits.
+                                        : ... note: In instance 't'
+   32 |     cp: coverpoint data65 {bins all65[] = {[$ : $]};}
+      |                                 ^~~~~
+%Error: t/t_covergroup_stage_bad.v:35:42: Unsupported: covergroup wildcard array bin 'wb' on value wider than 64 bits.
+                                        : ... note: In instance 't'
+   35 |     cp: coverpoint data65 {wildcard bins wb[] = {65'b1z};}
+      |                                          ^~
+%Error: t/t_covergroup_stage_bad.v:38:33: Unsupported: covergroup default array bin 'others' on coverpoint wider than 16 bits.
+                                        : ... note: In instance 't'
+   38 |     cp: coverpoint data17 {bins others[] = default;}
+      |                                 ^~~~~~
+%Warning-COVERIGN: t/t_covergroup_stage_bad.v:47:12: Coverage array bin 'neg_value' has value(s) outside the coverpoint domain; the out-of-domain value(s) are excluded (IEEE 1800-2023 19.5.7).
+                                                   : ... note: In instance 't'
+   47 |       bins neg_value[] = {-1};
+      |            ^~~~~~~~~
+                   ... For warning description see https://verilator.org/warn/COVERIGN?v=latest
+                   ... Use "/* verilator lint_off COVERIGN */" and lint_on around source to disable this message.
+%Warning-COVERIGN: t/t_covergroup_stage_bad.v:48:12: Coverage array bin 'hi_value' has value(s) outside the coverpoint domain; the out-of-domain value(s) are excluded (IEEE 1800-2023 19.5.7).
+                                                   : ... note: In instance 't'
+   48 |       bins hi_value[] = {20};
+      |            ^~~~~~~~
+%Warning-COVERIGN: t/t_covergroup_stage_bad.v:49:12: Coverage array bin 'xz_value' has value(s) outside the coverpoint domain; the out-of-domain value(s) are excluded (IEEE 1800-2023 19.5.7).
+                                                   : ... note: In instance 't'
+   49 |       bins xz_value[] = {2'b1x};
+      |            ^~~~~~~~
+%Warning-COVERIGN: t/t_covergroup_stage_bad.v:50:12: Coverage array bin 'hi_range' has value(s) outside the coverpoint domain; the out-of-domain value(s) are excluded (IEEE 1800-2023 19.5.7).
+                                                   : ... note: In instance 't'
+   50 |       bins hi_range[] = {[0 : 20]};
+      |            ^~~~~~~~
+%Warning-COVERIGN: t/t_covergroup_stage_bad.v:51:12: Coverage array bin 'out_range' has value(s) outside the coverpoint domain; the out-of-domain value(s) are excluded (IEEE 1800-2023 19.5.7).
+                                                   : ... note: In instance 't'
+   51 |       bins out_range[] = {[10 : 20]};
+      |            ^~~~~~~~~
+%Warning-COVERIGN: t/t_covergroup_stage_bad.v:52:12: Coverage array bin 'neg_range' has value(s) outside the coverpoint domain; the out-of-domain value(s) are excluded (IEEE 1800-2023 19.5.7).
+                                                   : ... note: In instance 't'
+   52 |       bins neg_range[] = {[-5 : -1]};
+      |            ^~~~~~~~~
+%Warning-COVERIGN: t/t_covergroup_stage_bad.v:56:28: Coverage array bin 'lo_value' has value(s) outside the coverpoint domain; the out-of-domain value(s) are excluded (IEEE 1800-2023 19.5.7).
+                                                   : ... note: In instance 't'
+   56 |     cp: coverpoint s {bins lo_value[] = {-9}; bins span_range[] = {[-9 : 9]};}
+      |                            ^~~~~~~~
+%Warning-COVERIGN: t/t_covergroup_stage_bad.v:56:52: Coverage array bin 'span_range' has value(s) outside the coverpoint domain; the out-of-domain value(s) are excluded (IEEE 1800-2023 19.5.7).
+                                                   : ... note: In instance 't'
+   56 |     cp: coverpoint s {bins lo_value[] = {-9}; bins span_range[] = {[-9 : 9]};}
+      |                                                    ^~~~~~~~~~
+%Error: Exiting due to

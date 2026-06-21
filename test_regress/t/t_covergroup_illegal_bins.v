@@ -1,7 +1,7 @@
 // DESCRIPTION: Verilator: Verilog Test module
 //
 // Test that illegal_bins are excluded from coverage (like ignore_bins).
-// Also tests coverpoints where all bins are ignore/illegal - get_coverage returns 100.0.
+// Also tests coverpoints where all bins are ignore/illegal - get_coverage returns 0.0.
 //
 // This file ONLY is placed under the Creative Commons Public Domain, for
 // any use, without warranty, 2026 by Wilson Snyder.
@@ -36,7 +36,7 @@ module t;
     }
   endgroup
 
-  // cg3: all bins are ignore_bins or illegal_bins - get_coverage returns 100.0
+  // cg3: all bins are ignore_bins or illegal_bins - get_coverage returns 0.0
   covergroup cg3;
     cp: coverpoint data {ignore_bins ign = {0, 1}; illegal_bins ill = {2, 3};}
   endgroup
@@ -63,10 +63,10 @@ module t;
     // Sample cg3 - values that only hit ignore_bins, never illegal_bins
     data = 0;
     cg3_inst.sample();
-    `checkr(cg3_inst.get_inst_coverage(), 100.0);
+    `checkr(cg3_inst.get_inst_coverage(), 0.0);
     data = 1;
     cg3_inst.sample();
-    `checkr(cg3_inst.get_inst_coverage(), 100.0);
+    `checkr(cg3_inst.get_inst_coverage(), 0.0);
 
     $write("*-* All Finished *-*\n");
     $finish;
