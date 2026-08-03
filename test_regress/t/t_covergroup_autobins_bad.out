@@ -85,4 +85,8 @@
                                                       : ... note: In instance 't'
    73 |       bins b_huge[] = {[0:$]};   
       |            ^~~~~~
+%Warning-COVERIGN: t/t_covergroup_autobins_bad.v:74:12: Unsupported: array 'bins' with non-integral range bound; bin ignored
+                                                      : ... note: In instance 't'
+   74 |       bins b_real[] = {[0.0 : 1.0]};   
+      |            ^~~~~~
 %Error: Exiting due to

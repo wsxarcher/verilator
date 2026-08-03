@@ -1210,6 +1210,27 @@ constexpr bool operator==(const VCoverBinsType& lhs, VCoverBinsType::en rhs) {
 
 //######################################################################
 
+class VCoverCrossBinSelType final {
+public:
+    enum en : uint8_t { BINSOF, LOG_AND, LOG_OR };
+    enum en m_e;
+    // cppcheck-suppress noExplicitConstructor
+    constexpr VCoverCrossBinSelType(en _e)
+        : m_e{_e} {}
+    const char* ascii() const {
+        static const char* const names[] = {"binsof", "&&", "||"};
+        return names[m_e];
+    }
+};
+constexpr bool operator==(const VCoverCrossBinSelType& lhs, const VCoverCrossBinSelType& rhs) {
+    return lhs.m_e == rhs.m_e;
+}
+constexpr bool operator==(const VCoverCrossBinSelType& lhs, VCoverCrossBinSelType::en rhs) {
+    return lhs.m_e == rhs;
+}
+
+//######################################################################
+
 class VCoverOptionType final {
 public:
     enum en : uint8_t {

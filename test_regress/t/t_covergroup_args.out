@@ -1,5 +1,8 @@
+__vlAnonCG_cg.cp_test.one: 1
+__vlAnonCG_cg.cp_test.zero: 1
 cg.cp1.hi: 0
 cg.cp1.lo: 1
+cg.cp_arg.expected: 1
 cg_clocked.cp_clocked.hi: 0
 cg_clocked.cp_clocked.lo: 1
 cg_samp.cp.b0: 1

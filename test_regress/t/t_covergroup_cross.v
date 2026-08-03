@@ -16,6 +16,10 @@ module t;
   logic cmd;
   logic mode;
   logic parity;
+  logic signed [2:0] signed_data;
+  logic signed [63:0] wide_signed_data;
+  logic signed [64:0] huge_signed_data;
+  logic [3:0] wildcard_data;
 
   typedef struct packed {logic m_p; logic h_mode;} cfg_t;
   cfg_t s_cfg = '0;
@@ -70,6 +74,238 @@ module t;
     }
     cp_cmd: coverpoint cmd {bins read = {0}; bins write = {1};}
     cross_ab: cross cp_addr, cp_cmd;
+  endgroup
+
+  // Cross ignore_bins using binsof, intersect value/range lists, &&, and negation
+  covergroup cg_cross_ignore;
+    cp_addr: coverpoint addr {
+      bins addr0 = {0};
+      bins addr1 = {1};
+      bins addr2 = {2};
+      bins addr3 = {3};
+    }
+    cp_cmd: coverpoint cmd {bins read = {0}; bins write = {1};}
+    addr_cmd: cross cp_addr, cp_cmd {
+      ignore_bins no_values = !binsof(cp_addr) intersect {[$ : $]};
+      ignore_bins outside_domain = binsof(cp_addr) intersect {-1, 4};
+      ignore_bins reversed_range = binsof(cp_addr) intersect {[3 : 1]};
+      ignore_bins addr0 = !binsof(cp_addr) intersect {[1 : 3]};
+      ignore_bins high_write
+          = binsof(cp_addr) intersect {3, [2 : 2]} && binsof(cp_cmd.write);
+    }
+  endgroup
+
+  // Cross ignore_bins using bare/qualified binsof, &&, ||, !, and parentheses
+  covergroup cg_cross_ignore_logic;
+    cp_addr: coverpoint addr {bins addr0 = {0}; bins addr1 = {1};}
+    cp_cmd: coverpoint cmd {bins read = {0}; bins write = {1};}
+    addr_cmd: cross cp_addr, cp_cmd {
+      ignore_bins except_addr0_read
+          = binsof(cp_addr) && (!binsof(cp_addr.addr0) || !binsof(cp_cmd.read));
+    }
+  endgroup
+
+  // Cross ignore_bins with a signed coverpoint domain
+  covergroup cg_cross_ignore_signed;
+    cp_data: coverpoint signed_data {
+      bins zero = {0};
+      bins one = {1};
+      bins two = {2};
+      bins three = {3};
+    }
+    cp_cmd: coverpoint cmd {bins read = {0}; bins write = {1};}
+    data_cmd: cross cp_data, cp_cmd {
+      ignore_bins low = binsof(cp_data) intersect {[0 : 1]};
+    }
+  endgroup
+
+  // Cross ignore_bins with negative singleton, closed-range, and open-range selectors
+  covergroup cg_cross_ignore_signed_negative;
+    cp_data: coverpoint signed_data {
+      bins neg_four = {-4};
+      bins neg_three = {-3};
+      bins neg_two = {-2};
+      bins neg_one = {-1};
+      bins zero = {0};
+      bins one = {1};
+    }
+    cp_cmd: coverpoint cmd {bins read = {0}; bins write = {1};}
+    data_cmd: cross cp_data, cp_cmd {
+      ignore_bins min_value = binsof(cp_data) intersect {[$ : -4]};
+      ignore_bins negative_range = binsof(cp_data) intersect {[-3 : -2]};
+      ignore_bins negative_singleton = binsof(cp_data) intersect {-1};
+    }
+  endgroup
+
+  // Cross ignore_bins widens a negative signed selector to the coverpoint width
+  covergroup cg_cross_ignore_signed_wide;
+    cp_data: coverpoint wide_signed_data {
+      bins neg_one = {-1};
+      bins one = {1};
+    }
+    cp_cmd: coverpoint cmd {bins any = {[0 : 1]};}
+    data_cmd: cross cp_data, cp_cmd {
+      ignore_bins neg_one = binsof(cp_data) intersect {-1};
+    }
+  endgroup
+
+  // Qualified binsof on a wildcard bin
+  covergroup cg_cross_ignore_wildcard;
+    cp_data: coverpoint wildcard_data {
+      wildcard bins low = {4'b0???};
+      wildcard bins high = {4'b1???};
+    }
+    cp_cmd: coverpoint cmd {bins any = {[0 : 1]};}
+    data_cmd: cross cp_data, cp_cmd {
+      ignore_bins low = binsof(cp_data.low);
+    }
+  endgroup
+
+  // Qualified and unqualified intersect selectors on wildcard bins
+  covergroup cg_cross_ignore_wildcard_intersect;
+    cp_data: coverpoint wildcard_data {
+      wildcard bins low = {4'b00??};
+      wildcard bins middle = {4'b01??};
+      wildcard bins high = {4'b1???};
+    }
+    cp_cmd: coverpoint cmd {bins any = {[0 : 1]};}
+    data_cmd: cross cp_data, cp_cmd {
+      ignore_bins low = binsof(cp_data) intersect {4'h1};
+      ignore_bins middle = binsof(cp_data.middle) intersect {4'h5};
+    }
+  endgroup
+
+  // Wildcard array bins expand into one concrete bin per matching value
+  covergroup cg_cross_ignore_wildcard_array;
+    cp_data: coverpoint wildcard_data {
+      wildcard bins patterns[] = {4'b11??};
+    }
+    cp_cmd: coverpoint cmd {bins any = {[0 : 1]};}
+    data_cmd: cross cp_data, cp_cmd {
+      ignore_bins twelve = binsof(cp_data.patterns) intersect {4'hc};
+    }
+  endgroup
+
+  // Qualified binsof with intersect selects one concrete array-bin element
+  covergroup cg_cross_ignore_array;
+    cp_data: coverpoint addr {
+      bins empty[] = {[3 : 1]};
+      bins values[] = {[0 : 3]};
+    }
+    cp_cmd: coverpoint cmd {bins any = {[0 : 1]};}
+    data_cmd: cross cp_data, cp_cmd {
+      ignore_bins empty = binsof(cp_data.empty);
+      ignore_bins zero = binsof(cp_data.values) intersect {0};
+    }
+  endgroup
+
+  // Signed array-bin ranges retain per-element signedness in intersect selectors
+  covergroup cg_cross_ignore_signed_array;
+    cp_data: coverpoint signed_data {bins values[] = {[-2 : -1]};}
+    cp_cmd: coverpoint cmd {bins any = {[0 : 1]};}
+    data_cmd: cross cp_data, cp_cmd {
+      ignore_bins neg_one = binsof(cp_data.values) intersect {-1};
+    }
+  endgroup
+
+  // Array-bin ranges are clipped before narrowing to the signed coverpoint width
+  covergroup cg_cross_ignore_signed_array_clipped;
+    cp_data: coverpoint signed_data {bins values[] = {[2 : 5]};}
+    cp_cmd: coverpoint cmd {bins any = {[0 : 1]};}
+    data_cmd: cross cp_data, cp_cmd {
+      ignore_bins three = binsof(cp_data.values) intersect {3};
+    }
+  endgroup
+
+  // Signed array-bin range materialization also supports widths above 64 bits
+  covergroup cg_cross_ignore_signed_array_wide;
+    cp_data: coverpoint huge_signed_data {bins values[] = {[-2 : -1]};}
+    cp_cmd: coverpoint cmd {bins any = {[0 : 1]};}
+    data_cmd: cross cp_data, cp_cmd {
+      ignore_bins neg_one = binsof(cp_data.values) intersect {-1};
+    }
+  endgroup
+
+  // Named default, ignore, and illegal bins resolve to empty cross-bin sets
+  covergroup cg_cross_ignore_excluded_names;
+    cp_data: coverpoint addr {
+      bins zero = {0};
+      bins fallback = default;
+      ignore_bins ignored = {1};
+      illegal_bins illegal = {2};
+    }
+    cp_cmd: coverpoint cmd {bins any = {[0 : 1]};}
+    data_cmd: cross cp_data, cp_cmd {
+      ignore_bins excluded
+          = binsof(cp_data.fallback)
+            || binsof(cp_data.ignored)
+            || binsof(cp_data.illegal);
+    }
+  endgroup
+
+  // Array-element report names cannot collide with legal scalar bin identifiers
+  covergroup cg_cross_name_collision;
+    cp_data: coverpoint addr {
+      bins values[] = {0};
+      bins values_0_ = {1};
+    }
+    cp_cmd: coverpoint cmd {bins any = {[0 : 1]};}
+    data_cmd: cross cp_data, cp_cmd;
+  endgroup
+
+  // Unbased unsized literals fill to the coverpoint width
+  covergroup cg_cross_ignore_fill_literal;
+    cp_data: coverpoint wildcard_data {
+      bins one = {1};
+      bins all_ones = {15};
+    }
+    cp_cmd: coverpoint cmd {bins any = {[0 : 1]};}
+    data_cmd: cross cp_data, cp_cmd {
+      ignore_bins all_ones = binsof(cp_data) intersect {'1};
+    }
+  endgroup
+
+  // Wildcard patterns resolve at their original width before domain filtering
+  covergroup cg_cross_ignore_wildcard_narrow;
+    cp_data: coverpoint signed_data {
+      wildcard bins low = {4'b0???};
+      bins neg_one = {-1};
+    }
+    cp_cmd: coverpoint cmd {bins any = {[0 : 1]};}
+    data_cmd: cross cp_data, cp_cmd {
+      ignore_bins none = binsof(cp_data.low) intersect {-1};
+    }
+  endgroup
+
+  // Wildcard arrays likewise filter original-width values before narrowing
+  covergroup cg_cross_ignore_wildcard_array_narrow;
+    cp_data: coverpoint signed_data {
+      wildcard bins values[] = {4'b0???};
+    }
+    cp_cmd: coverpoint cmd {bins any = {[0 : 1]};}
+    data_cmd: cross cp_data, cp_cmd {
+      ignore_bins zero = binsof(cp_data.values) intersect {0};
+    }
+  endgroup
+
+  // Scalar ranges are clipped before narrowing to the signed coverpoint width
+  covergroup cg_cross_ignore_scalar_range_clipped;
+    cp_data: coverpoint signed_data {bins clipped = {[2 : 5]};}
+    cp_cmd: coverpoint cmd {bins any = {[0 : 1]};}
+    data_cmd: cross cp_data, cp_cmd {
+      ignore_bins none = binsof(cp_data) intersect {6};
+    }
+  endgroup
+
+  // Scalar range comparisons support constants wider than 64 bits
+  covergroup cg_cross_ignore_scalar_range_wide;
+    cp_data: coverpoint huge_signed_data {
+      bins low_to_zero = {[65'sh1_0000_0000_0000_0000 : 0]};
+    }
+    cp_cmd: coverpoint cmd {bins any = {[0 : 1]};}
+    data_cmd: cross cp_data, cp_cmd {
+      ignore_bins none = binsof(cp_data) intersect {1};
+    }
   endgroup
 
   // Cross with option.at_least set in the cross body
@@ -127,6 +363,25 @@ module t;
 
   cg2 cg2_inst = new;
   cg_ignore cg_ignore_inst = new;
+  cg_cross_ignore cg_cross_ignore_inst = new;
+  cg_cross_ignore_array cg_cross_ignore_array_inst = new;
+  cg_cross_ignore_excluded_names cg_cross_ignore_excluded_names_inst = new;
+  cg_cross_ignore_fill_literal cg_cross_ignore_fill_literal_inst = new;
+  cg_cross_ignore_logic cg_cross_ignore_logic_inst = new;
+  cg_cross_ignore_scalar_range_clipped cg_cross_ignore_scalar_range_clipped_inst = new;
+  cg_cross_ignore_scalar_range_wide cg_cross_ignore_scalar_range_wide_inst = new;
+  cg_cross_ignore_signed_array cg_cross_ignore_signed_array_inst = new;
+  cg_cross_ignore_signed_array_clipped cg_cross_ignore_signed_array_clipped_inst = new;
+  cg_cross_ignore_signed_array_wide cg_cross_ignore_signed_array_wide_inst = new;
+  cg_cross_ignore_signed cg_cross_ignore_signed_inst = new;
+  cg_cross_ignore_signed_negative cg_cross_ignore_signed_negative_inst = new;
+  cg_cross_ignore_signed_wide cg_cross_ignore_signed_wide_inst = new;
+  cg_cross_ignore_wildcard cg_cross_ignore_wildcard_inst = new;
+  cg_cross_ignore_wildcard_array cg_cross_ignore_wildcard_array_inst = new;
+  cg_cross_ignore_wildcard_array_narrow cg_cross_ignore_wildcard_array_narrow_inst = new;
+  cg_cross_ignore_wildcard_intersect cg_cross_ignore_wildcard_intersect_inst = new;
+  cg_cross_ignore_wildcard_narrow cg_cross_ignore_wildcard_narrow_inst = new;
+  cg_cross_name_collision cg_cross_name_collision_inst = new;
   cg_range cg_range_inst = new;
   cg3 cg3_inst = new;
   cg4 cg4_inst = new;
@@ -243,6 +498,240 @@ module t;
     cmd = 0;
     cg_ignore_inst.sample();  // ignored (addr=3 in ignore_bins)
     `checkr(cg_ignore_inst.get_inst_coverage(), 100.0);  // still 100%
+
+    // Sample cg_cross_ignore: four of eight Cartesian tuples are excluded.
+    // Four addr bins + two cmd bins + four retained cross bins = 10 bins.
+    addr = 0;
+    cmd = 0;
+    cg_cross_ignore_inst.sample();  // addr0 x read is ignored by the cross
+    `checkr(cg_cross_ignore_inst.get_inst_coverage(), 20.0);  // addr0 + read
+    addr = 1;
+    cmd = 1;
+    cg_cross_ignore_inst.sample();  // addr1 x write
+    `checkr(cg_cross_ignore_inst.get_inst_coverage(), 50.0);
+    addr = 1;
+    cmd = 0;
+    cg_cross_ignore_inst.sample();  // addr1 x read
+    `checkr(cg_cross_ignore_inst.get_inst_coverage(), 60.0);
+    addr = 2;
+    cmd = 0;
+    cg_cross_ignore_inst.sample();  // addr2 x read
+    `checkr(cg_cross_ignore_inst.get_inst_coverage(), 80.0);
+    addr = 3;
+    cmd = 0;
+    cg_cross_ignore_inst.sample();  // addr3 x read
+    `checkr(cg_cross_ignore_inst.get_inst_coverage(), 100.0);
+
+    // Sample cg_cross_ignore_logic: only addr0 x read remains in the cross.
+    // Two addr bins + two cmd bins + one retained cross bin = five bins.
+    addr = 0;
+    cmd = 0;
+    cg_cross_ignore_logic_inst.sample();
+    `checkr(cg_cross_ignore_logic_inst.get_inst_coverage(), 60.0);
+    addr = 1;
+    cmd = 1;
+    cg_cross_ignore_logic_inst.sample();  // ignored by the cross
+    `checkr(cg_cross_ignore_logic_inst.get_inst_coverage(), 100.0);
+
+    // Sample cg_cross_ignore_signed: low tuples are excluded from the cross.
+    signed_data = 0;
+    cmd = 0;
+    cg_cross_ignore_signed_inst.sample();
+    `checkr(cg_cross_ignore_signed_inst.get_inst_coverage(), 20.0);
+    signed_data = 1;
+    cmd = 1;
+    cg_cross_ignore_signed_inst.sample();
+    `checkr(cg_cross_ignore_signed_inst.get_inst_coverage(), 40.0);
+    signed_data = 2;
+    cmd = 0;
+    cg_cross_ignore_signed_inst.sample();
+    `checkr(cg_cross_ignore_signed_inst.get_inst_coverage(), 60.0);
+    signed_data = 2;
+    cmd = 1;
+    cg_cross_ignore_signed_inst.sample();
+    `checkr(cg_cross_ignore_signed_inst.get_inst_coverage(), 70.0);
+    signed_data = 3;
+    cmd = 0;
+    cg_cross_ignore_signed_inst.sample();
+    `checkr(cg_cross_ignore_signed_inst.get_inst_coverage(), 90.0);
+    signed_data = 3;
+    cmd = 1;
+    cg_cross_ignore_signed_inst.sample();
+    `checkr(cg_cross_ignore_signed_inst.get_inst_coverage(), 100.0);
+
+    // Sample negative signed selectors: all negative tuples are excluded.
+    signed_data = -4;
+    cmd = 0;
+    cg_cross_ignore_signed_negative_inst.sample();
+    cmd = 1;
+    cg_cross_ignore_signed_negative_inst.sample();
+    signed_data = -3;
+    cmd = 0;
+    cg_cross_ignore_signed_negative_inst.sample();
+    cmd = 1;
+    cg_cross_ignore_signed_negative_inst.sample();
+    signed_data = -2;
+    cmd = 0;
+    cg_cross_ignore_signed_negative_inst.sample();
+    cmd = 1;
+    cg_cross_ignore_signed_negative_inst.sample();
+    signed_data = -1;
+    cmd = 0;
+    cg_cross_ignore_signed_negative_inst.sample();
+    cmd = 1;
+    cg_cross_ignore_signed_negative_inst.sample();
+    `checkr(cg_cross_ignore_signed_negative_inst.get_inst_coverage(), 50.0);
+    signed_data = 0;
+    cmd = 0;
+    cg_cross_ignore_signed_negative_inst.sample();
+    cmd = 1;
+    cg_cross_ignore_signed_negative_inst.sample();
+    `checkr(cg_cross_ignore_signed_negative_inst.get_inst_coverage(), 75.0);
+    signed_data = 1;
+    cmd = 0;
+    cg_cross_ignore_signed_negative_inst.sample();
+    cmd = 1;
+    cg_cross_ignore_signed_negative_inst.sample();
+    `checkr(cg_cross_ignore_signed_negative_inst.get_inst_coverage(), 100.0);
+
+    // A 32-bit -1 literal is sign-extended to the 64-bit coverpoint width.
+    wide_signed_data = -1;
+    cmd = 0;
+    cg_cross_ignore_signed_wide_inst.sample();
+    `checkr(cg_cross_ignore_signed_wide_inst.get_inst_coverage(), 50.0);
+    wide_signed_data = 1;
+    cg_cross_ignore_signed_wide_inst.sample();
+    `checkr(cg_cross_ignore_signed_wide_inst.get_inst_coverage(), 100.0);
+
+    // A qualified wildcard selector excludes only the low wildcard bin.
+    wildcard_data = 4'h5;
+    cmd = 0;
+    cg_cross_ignore_wildcard_inst.sample();
+    `checkr(cg_cross_ignore_wildcard_inst.get_inst_coverage(), 50.0);
+    wildcard_data = 4'ha;
+    cg_cross_ignore_wildcard_inst.sample();
+    `checkr(cg_cross_ignore_wildcard_inst.get_inst_coverage(), 100.0);
+
+    // Wildcard intersections select a bin when any value in its pattern overlaps.
+    wildcard_data = 4'h1;
+    cg_cross_ignore_wildcard_intersect_inst.sample();
+    `checkr(cg_cross_ignore_wildcard_intersect_inst.get_inst_coverage(), 40.0);
+    wildcard_data = 4'h5;
+    cg_cross_ignore_wildcard_intersect_inst.sample();
+    `checkr(cg_cross_ignore_wildcard_intersect_inst.get_inst_coverage(), 60.0);
+    wildcard_data = 4'ha;
+    cg_cross_ignore_wildcard_intersect_inst.sample();
+    `checkr(cg_cross_ignore_wildcard_intersect_inst.get_inst_coverage(), 100.0);
+
+    // The wildcard array contributes four concrete bins; only value 12 is excluded.
+    wildcard_data = 4'hc;
+    cg_cross_ignore_wildcard_array_inst.sample();
+    `checkr(cg_cross_ignore_wildcard_array_inst.get_inst_coverage(), 25.0);
+    wildcard_data = 4'hd;
+    cg_cross_ignore_wildcard_array_inst.sample();
+    `checkr(cg_cross_ignore_wildcard_array_inst.get_inst_coverage(), 50.0);
+    wildcard_data = 4'he;
+    cg_cross_ignore_wildcard_array_inst.sample();
+    `checkr(cg_cross_ignore_wildcard_array_inst.get_inst_coverage(), 75.0);
+    wildcard_data = 4'hf;
+    cg_cross_ignore_wildcard_array_inst.sample();
+    `checkr(cg_cross_ignore_wildcard_array_inst.get_inst_coverage(), 100.0);
+
+    // Array-bin intersect excludes values[0], retaining the other three cross bins.
+    addr = 0;
+    cmd = 0;
+    cg_cross_ignore_array_inst.sample();
+    `checkr(cg_cross_ignore_array_inst.get_inst_coverage(), 25.0);
+    addr = 1;
+    cmd = 1;
+    cg_cross_ignore_array_inst.sample();
+    `checkr(cg_cross_ignore_array_inst.get_inst_coverage(), 50.0);
+    addr = 2;
+    cg_cross_ignore_array_inst.sample();
+    `checkr(cg_cross_ignore_array_inst.get_inst_coverage(), 75.0);
+    addr = 3;
+    cg_cross_ignore_array_inst.sample();
+    `checkr(cg_cross_ignore_array_inst.get_inst_coverage(), 100.0);
+
+    // Signed array-bin intersect excludes only the -1 element.
+    signed_data = -1;
+    cg_cross_ignore_signed_array_inst.sample();
+    `checkr(cg_cross_ignore_signed_array_inst.get_inst_coverage(), 50.0);
+    signed_data = -2;
+    cg_cross_ignore_signed_array_inst.sample();
+    `checkr(cg_cross_ignore_signed_array_inst.get_inst_coverage(), 100.0);
+
+    // [2:5] clips to signed_data's domain, yielding concrete values 2 and 3.
+    signed_data = 3;
+    cg_cross_ignore_signed_array_clipped_inst.sample();
+    `checkr(cg_cross_ignore_signed_array_clipped_inst.get_inst_coverage(), 50.0);
+    signed_data = 2;
+    cg_cross_ignore_signed_array_clipped_inst.sample();
+    `checkr(cg_cross_ignore_signed_array_clipped_inst.get_inst_coverage(), 100.0);
+
+    // A 65-bit signed range likewise retains -2 and -1 as distinct elements.
+    huge_signed_data = -1;
+    cg_cross_ignore_signed_array_wide_inst.sample();
+    `checkr(cg_cross_ignore_signed_array_wide_inst.get_inst_coverage(), 50.0);
+    huge_signed_data = -2;
+    cg_cross_ignore_signed_array_wide_inst.sample();
+    `checkr(cg_cross_ignore_signed_array_wide_inst.get_inst_coverage(), 100.0);
+
+    // Excluded bin declarations resolve but add no cross tuples.
+    addr = 0;
+    cg_cross_ignore_excluded_names_inst.sample();
+    `checkr(cg_cross_ignore_excluded_names_inst.get_inst_coverage(), 100.0);
+    addr = 3;
+    cg_cross_ignore_excluded_names_inst.sample();
+    `checkr(cg_cross_ignore_excluded_names_inst.get_inst_coverage(), 100.0);
+
+    // Array and scalar bins with sanitization-equivalent names remain distinct.
+    addr = 0;
+    cg_cross_name_collision_inst.sample();
+    `checkr(cg_cross_name_collision_inst.get_inst_coverage(), 60.0);
+    addr = 1;
+    cg_cross_name_collision_inst.sample();
+    `checkr(cg_cross_name_collision_inst.get_inst_coverage(), 100.0);
+
+    // '1 resolves to 4'hf, so only the all_ones cross tuple is excluded.
+    wildcard_data = 4'hf;
+    cg_cross_ignore_fill_literal_inst.sample();
+    `checkr(cg_cross_ignore_fill_literal_inst.get_inst_coverage(), 50.0);
+    wildcard_data = 4'h1;
+    cg_cross_ignore_fill_literal_inst.sample();
+    `checkr(cg_cross_ignore_fill_literal_inst.get_inst_coverage(), 100.0);
+
+    // 4'b0??? on a signed 3-bit coverpoint contains 0..3, not -4..3.
+    signed_data = -1;
+    cg_cross_ignore_wildcard_narrow_inst.sample();
+    `checkr(cg_cross_ignore_wildcard_narrow_inst.get_inst_coverage(), 60.0);
+    signed_data = 0;
+    cg_cross_ignore_wildcard_narrow_inst.sample();
+    `checkr(cg_cross_ignore_wildcard_narrow_inst.get_inst_coverage(), 100.0);
+
+    // The corresponding wildcard array has four elements; zero alone is excluded.
+    signed_data = 0;
+    cg_cross_ignore_wildcard_array_narrow_inst.sample();
+    `checkr(cg_cross_ignore_wildcard_array_narrow_inst.get_inst_coverage(), 25.0);
+    signed_data = 1;
+    cg_cross_ignore_wildcard_array_narrow_inst.sample();
+    `checkr(cg_cross_ignore_wildcard_array_narrow_inst.get_inst_coverage(), 50.0);
+    signed_data = 2;
+    cg_cross_ignore_wildcard_array_narrow_inst.sample();
+    `checkr(cg_cross_ignore_wildcard_array_narrow_inst.get_inst_coverage(), 75.0);
+    signed_data = 3;
+    cg_cross_ignore_wildcard_array_narrow_inst.sample();
+    `checkr(cg_cross_ignore_wildcard_array_narrow_inst.get_inst_coverage(), 100.0);
+
+    // The scalar range [2:5] clips to [2:3], so value 3 hits its tuple.
+    signed_data = 3;
+    cg_cross_ignore_scalar_range_clipped_inst.sample();
+    `checkr(cg_cross_ignore_scalar_range_clipped_inst.get_inst_coverage(), 100.0);
+
+    // A 65-bit signed range containing -1 also hits without 64-bit conversion.
+    huge_signed_data = -1;
+    cg_cross_ignore_scalar_range_wide_inst.sample();
+    `checkr(cg_cross_ignore_scalar_range_wide_inst.get_inst_coverage(), 100.0);
 
     // Sample range-bin cross
     // cg_range: 2+2+4=8 bins

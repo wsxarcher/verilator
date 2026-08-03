@@ -237,6 +237,7 @@ class WidthVisitor final : public VNVisitor {
     const AstEnumItem* m_enumItemp = nullptr;  // Current enum item
     AstNodeFTask* m_ftaskp = nullptr;  // Current function/task
     AstClass* m_cgClassp = nullptr;  // Current covergroup class
+    std::map<std::string, AstCoverpoint*> m_cgCoverpoints;  // Coverpoints in current covergroup
     AstNodeModule* m_modep = nullptr;  // Current module
     const AstConstraint* m_constraintp = nullptr;  // Current constraint
     AstNodeProcedure* m_procedurep = nullptr;  // Current final/always
@@ -1998,7 +1999,37 @@ class WidthVisitor final : public VNVisitor {
         // Delete the assignment node (we've extracted the value)
         VL_DO_DANGLING(pushDeletep(nodep->unlinkFrBack()), nodep);
     }
+    void widthCoverageRanges(AstNode* rangesp) {
+        // Coverage range/value entries are self-determined constant expressions.
+        for (AstNode *nextp, *itemp = rangesp; itemp; itemp = nextp) {
+            nextp = itemp->nextp();
+            if (VN_IS(itemp, InsideRange)) {
+                userIterate(itemp, nullptr);
+            } else {
+                if (const AstConst* const constp = VN_CAST(itemp, Const)) {
+                    if (constp->num().autoExtend()) continue;
+                }
+                userIterate(itemp, WidthVP{SELF, BOTH}.p());
+                V3Const::constifyEdit(itemp);  // itemp may change
+            }
+        }
+    }
+    void fixCoverageAutoExtend(AstNode* rangesp, int width) {
+        for (AstNode *nextp, *itemp = rangesp; itemp; itemp = nextp) {
+            nextp = itemp->nextp();
+            if (AstInsideRange* const rangep = VN_CAST(itemp, InsideRange)) {
+                AstNodeExpr* lhsp = rangep->lhsp();
+                AstNodeExpr* rhsp = rangep->rhsp();
+                fixAutoExtend(lhsp, width);
+                fixAutoExtend(rhsp, width);
+            } else if (AstNodeExpr* const exprp = VN_CAST(itemp, NodeExpr)) {
+                AstNodeExpr* valuep = exprp;
+                fixAutoExtend(valuep, width);
+            }
+        }
+    }
     void visit(AstCoverpoint* nodep) override {
+        if (m_cgClassp) m_cgCoverpoints.emplace(nodep->name(), nodep);
         // The coverpoint expression is self-determined (IEEE 1800-2023 19.5).  Width it
         // with a context so a bit/part-select (AstSel) is sized here; otherwise it would
         // reach assertAtExpr() with m_vup==null and fail as an internal error.
@@ -2013,18 +2044,24 @@ class WidthVisitor final : public VNVisitor {
         // parameter acquires a dtype, then constify so the reference folds to the AstConst
         // value that V3Covergroup requires.  AstInsideRange entries fold their own bounds in
         // visit(AstInsideRange).
-        for (AstNode *nextp, *itemp = nodep->rangesp(); itemp; itemp = nextp) {
-            nextp = itemp->nextp();
-            if (VN_IS(itemp, InsideRange)) {
-                userIterate(itemp, nullptr);
-            } else {
-                userIterate(itemp, WidthVP{SELF, BOTH}.p());
-                V3Const::constifyEdit(itemp);  // itemp may change
-            }
-        }
+        widthCoverageRanges(nodep->rangesp());
         userIterateAndNext(nodep->iffp(), nullptr);
         userIterateAndNext(nodep->arraySizep(), nullptr);
         userIterateAndNext(nodep->transp(), nullptr);
+    }
+    void visit(AstCoverCrossBin* nodep) override {
+        userIterateAndNext(nodep->selectp(), nullptr);
+        if (nodep->iffp()) iterateCheckBool(nodep, "iff condition", nodep->iffp(), BOTH);
+    }
+    void visit(AstCoverCrossBinSel* nodep) override {
+        userIterateAndNext(nodep->lhsp(), nullptr);
+        userIterateAndNext(nodep->rhsp(), nullptr);
+        if (nodep->selectType() == VCoverCrossBinSelType::BINSOF && m_cgClassp) {
+            const auto it = m_cgCoverpoints.find(nodep->coverpointName());
+            if (it != m_cgCoverpoints.end())
+                fixCoverageAutoExtend(nodep->rangesp(), it->second->exprp()->width());
+        }
+        widthCoverageRanges(nodep->rangesp());
     }
     void visit(AstPow* nodep) override {
         // Pow is special, output sign only depends on LHS sign, but
@@ -3685,10 +3722,16 @@ class WidthVisitor final : public VNVisitor {
             // referenced parameter) has a dtype, then constify so constant arithmetic is folded
             // (e.g. AstNegate(Const) -> Const, or a parameter reference -> Const).  Folding
             // preserves the now-present dtype, so no bound reaches V3WidthCommit without one.
-            userIterateAndNext(nodep->lhsp(), WidthVP{SELF, BOTH}.p());
-            userIterateAndNext(nodep->rhsp(), WidthVP{SELF, BOTH}.p());
-            V3Const::constifyEdit(nodep->lhsp());  // lhsp may change
-            V3Const::constifyEdit(nodep->rhsp());  // rhsp may change
+            AstConst* const lhsConstp = VN_CAST(nodep->lhsp(), Const);
+            if (!lhsConstp || !lhsConstp->num().autoExtend()) {
+                userIterateAndNext(nodep->lhsp(), WidthVP{SELF, BOTH}.p());
+                V3Const::constifyEdit(nodep->lhsp());  // lhsp may change
+            }
+            AstConst* const rhsConstp = VN_CAST(nodep->rhsp(), Const);
+            if (!rhsConstp || !rhsConstp->num().autoExtend()) {
+                userIterateAndNext(nodep->rhsp(), WidthVP{SELF, BOTH}.p());
+                V3Const::constifyEdit(nodep->rhsp());  // rhsp may change
+            }
         } else {
             if (m_vup->prelim()) {
                 userIterateAndNext(nodep->lhsp(), m_vup);
@@ -7881,7 +7924,11 @@ class WidthVisitor final : public VNVisitor {
         // start following a tree of extends that takes us to other classes
         userIterateAndNext(nodep->extendsp(), nullptr);
         VL_RESTORER(m_cgClassp);
-        if (nodep->isCovergroup()) m_cgClassp = nodep;
+        VL_RESTORER_COPY(m_cgCoverpoints);
+        if (nodep->isCovergroup()) {
+            m_cgClassp = nodep;
+            m_cgCoverpoints.clear();
+        }
         userIterateChildren(nodep, nullptr);  // First size all members
     }
     void visit(AstNodeModule* nodep) override {

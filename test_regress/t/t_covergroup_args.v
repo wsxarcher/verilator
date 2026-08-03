@@ -9,6 +9,24 @@ class PlainClass;
     int x;
 endclass
 
+class CoverageState;
+  bit test;
+endclass
+
+class Coverage;
+  covergroup cg(CoverageState st);
+    cp_test: coverpoint st.test {
+      bins zero = {0};
+      bins one = {1};
+    }
+  endgroup
+  CoverageState state;
+  function new();
+    state = new();
+    cg = new(state);
+  endfunction
+endclass
+
 // Top-level (file-scope) covergroup declared outside any module
 covergroup cg_toplevel;
   cp_tl: coverpoint 0;
@@ -21,6 +39,7 @@ module t;
 
   covergroup cg(int var1, int var2 = 42);
     cp1: coverpoint i { bins lo = {[0:4]}; bins hi = {[5:9]}; }
+    cp_arg: coverpoint var1 { bins expected = {69}; }
   endgroup
 
   // Clocked covergroup with constructor arguments
@@ -39,6 +58,7 @@ module t;
   cg cov2 = new(69);
   cg_clocked cov_clocked = new(10);
   cg_samp cov_samp = new;
+  Coverage cov_handle = new;
   PlainClass plain_inst = new;  // Non-covergroup class instance - must not affect covergroup coverage
 
   function void x();
@@ -82,6 +102,9 @@ module t;
     // default 0) b3 would never be hit.
     cov_samp.sample(2'd0);
     cov_samp.sample(2'd3);
+    cov_handle.cg.sample();
+    cov_handle.state.test = 1;
+    cov_handle.cg.sample();
     $finish;
   end
 

@@ -425,7 +425,9 @@ module t (/*AUTOARG*/
       bins y0 = {0};
       bins y1 = {1};
     }
-    cx: cross cp_x, cp_y;
+    cx: cross cp_x, cp_y {
+      ignore_bins ign = binsof(cp_x.x0) || binsof(cp_y) intersect {1};
+    }
   endgroup
 
   cg_basic   cg_basic_inst   = new;

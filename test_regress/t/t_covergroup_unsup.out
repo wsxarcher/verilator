@@ -225,20 +225,41 @@
 %Warning-COVERIGN: t/t_covergroup_unsup.v:195:7: Unsupported: explicit coverage cross bins
   195 |       bins bin_multiple_fields = binsof(p.inner_packet.field);
       |       ^~~~
-%Warning-COVERIGN: t/t_covergroup_unsup.v:197:30: Unsupported: 'binsof' in coverage select expression
-  197 |       ignore_bins ib_cross = binsof(a);
-      |                              ^~~~~~
-%Warning-COVERIGN: t/t_covergroup_unsup.v:197:7: Unsupported: explicit coverage cross bins
-  197 |       ignore_bins ib_cross = binsof(a);
-      |       ^~~~~~~~~~~
-%Warning-COVERIGN: t/t_covergroup_unsup.v:198:32: Unsupported: 'binsof' in coverage select expression
-  198 |       illegal_bins lib_cross = binsof(a);
+%Warning-COVERIGN: t/t_covergroup_unsup.v:197:39: Unsupported: 'with' in coverage select expression
+  197 |       ignore_bins ib_with = binsof(a) with (a);
+      |                                       ^~~~
+%Warning-COVERIGN: t/t_covergroup_unsup.v:198:40: Unsupported: 'with' in coverage select expression
+  198 |       ignore_bins ib_standalone_with = with (a);
+      |                                        ^~~~
+%Warning-COVERIGN: t/t_covergroup_unsup.v:199:33: Unsupported: 'with' in coverage select expression
+  199 |       ignore_bins ib_not_with = !with (a);
+      |                                 ^
+%Warning-COVERIGN: t/t_covergroup_unsup.v:200:55: Unsupported: 'with' in coverage select expression
+  200 |       ignore_bins ib_or_with = binsof(a) || binsof(a) with (a);
+      |                                                       ^~~~
+%Warning-COVERIGN: t/t_covergroup_unsup.v:201:56: Unsupported: 'with' in coverage select expression
+  201 |       ignore_bins ib_and_with = binsof(a) && binsof(a) with (a);
+      |                                                        ^~~~
+%Warning-COVERIGN: t/t_covergroup_unsup.v:202:29: Unsupported: function call in coverage select expression
+  202 |       ignore_bins ib_func = crossfunc();
+      |                             ^~~~~~~~~
+%Warning-COVERIGN: t/t_covergroup_unsup.v:203:43: Unsupported: 'iff' on coverage cross ignore_bins
+  203 |       ignore_bins ib_iff = binsof(a) iff (!rst);
+      |                                           ^
+%Warning-COVERIGN: t/t_covergroup_unsup.v:205:37: Unsupported: covergroup value range '[...]'
+  205 |           = binsof(a) intersect {1, [5 +/- 2]};
+      |                                     ^
+%Warning-COVERIGN: t/t_covergroup_unsup.v:206:59: Unsupported: covergroup value range '[...]'
+  206 |       ignore_bins ib_pct_tolerance = binsof(a) intersect {[5 +%- 20.0]};
+      |                                                           ^
+%Warning-COVERIGN: t/t_covergroup_unsup.v:208:32: Unsupported: 'binsof' in coverage select expression
+  208 |       illegal_bins lib_cross = binsof(a);
       |                                ^~~~~~
-%Warning-COVERIGN: t/t_covergroup_unsup.v:198:7: Unsupported: explicit coverage cross bins
-  198 |       illegal_bins lib_cross = binsof(a);
+%Warning-COVERIGN: t/t_covergroup_unsup.v:208:7: Unsupported: explicit coverage cross bins
+  208 |       illegal_bins lib_cross = binsof(a);
       |       ^~~~~~~~~~~~
-%Error-UNSUPPORTED: t/t_covergroup_unsup.v:223:5: Unsupported: covergroup inheritance (extends)
-  223 |     covergroup extends cg_empty;
+%Error-UNSUPPORTED: t/t_covergroup_unsup.v:244:5: Unsupported: covergroup inheritance (extends)
+  244 |     covergroup extends cg_empty;
       |     ^~~~~~~~~~
                     ... For error description see https://verilator.org/warn/UNSUPPORTED?v=latest
 %Error: Exiting due to

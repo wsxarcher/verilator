@@ -3905,6 +3905,34 @@ void AstCoverBin::dumpJson(std::ostream& str) const {
     if (m_isArray) str << ", \"isArray\": true";
 }
 
+void AstCoverCrossBinSel::dump(std::ostream& str) const {
+    this->AstNode::dump(str);
+    str << " " << m_type.ascii();
+    if (m_negated) str << " [negated]";
+    if (!m_coverpointName.empty()) {
+        str << " " << m_coverpointName;
+        if (!m_binName.empty()) str << "." << m_binName;
+    }
+}
+
+void AstCoverCrossBinSel::dumpJson(std::ostream& str) const {
+    this->AstNode::dumpJson(str);
+    str << ", \"selectType\": \"" << m_type.ascii() << "\"";
+    if (m_negated) str << ", \"negated\": true";
+    if (!m_coverpointName.empty()) dumpJsonStr(str, "coverpointName", m_coverpointName);
+    if (!m_binName.empty()) dumpJsonStr(str, "binName", m_binName);
+}
+
+void AstCoverCrossBin::dump(std::ostream& str) const {
+    this->AstNode::dump(str);
+    str << " " << m_type.ascii();
+}
+
+void AstCoverCrossBin::dumpJson(std::ostream& str) const {
+    this->AstNode::dumpJson(str);
+    str << ", \"binsType\": \"" << m_type.ascii() << "\"";
+}
+
 void AstCoverTransItem::dump(std::ostream& str) const {
     this->AstNode::dump(str);
     if (m_repType != VTransRepType::NONE) str << " " << m_repType.ascii();

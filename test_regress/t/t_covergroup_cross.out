@@ -65,6 +65,106 @@ cg_at_least.cp_addr.addr0: 1
 cg_at_least.cp_addr.addr1: 1
 cg_at_least.cp_cmd.read: 1
 cg_at_least.cp_cmd.write: 1
+cg_cross_ignore.addr_cmd.addr1_x_read [cross]: 1
+cg_cross_ignore.addr_cmd.addr1_x_write [cross]: 1
+cg_cross_ignore.addr_cmd.addr2_x_read [cross]: 1
+cg_cross_ignore.addr_cmd.addr3_x_read [cross]: 1
+cg_cross_ignore.cp_addr.addr0: 1
+cg_cross_ignore.cp_addr.addr1: 2
+cg_cross_ignore.cp_addr.addr2: 1
+cg_cross_ignore.cp_addr.addr3: 1
+cg_cross_ignore.cp_cmd.read: 4
+cg_cross_ignore.cp_cmd.write: 1
+cg_cross_ignore_array.cp_cmd.any: 4
+cg_cross_ignore_array.cp_data.values: 4
+cg_cross_ignore_array.data_cmd.values[1]_x_any [cross]: 1
+cg_cross_ignore_array.data_cmd.values[2]_x_any [cross]: 1
+cg_cross_ignore_array.data_cmd.values[3]_x_any [cross]: 1
+cg_cross_ignore_excluded_names.cp_cmd.any: 2
+cg_cross_ignore_excluded_names.cp_data.fallback: 1
+cg_cross_ignore_excluded_names.cp_data.ignored [ignore]: 0
+cg_cross_ignore_excluded_names.cp_data.illegal [illegal]: 0
+cg_cross_ignore_excluded_names.cp_data.zero: 1
+cg_cross_ignore_excluded_names.data_cmd.zero_x_any [cross]: 1
+cg_cross_ignore_fill_literal.cp_cmd.any: 2
+cg_cross_ignore_fill_literal.cp_data.all_ones: 1
+cg_cross_ignore_fill_literal.cp_data.one: 1
+cg_cross_ignore_fill_literal.data_cmd.one_x_any [cross]: 1
+cg_cross_ignore_logic.addr_cmd.addr0_x_read [cross]: 1
+cg_cross_ignore_logic.cp_addr.addr0: 1
+cg_cross_ignore_logic.cp_addr.addr1: 1
+cg_cross_ignore_logic.cp_cmd.read: 1
+cg_cross_ignore_logic.cp_cmd.write: 1
+cg_cross_ignore_scalar_range_clipped.cp_cmd.any: 1
+cg_cross_ignore_scalar_range_clipped.cp_data.clipped: 1
+cg_cross_ignore_scalar_range_clipped.data_cmd.clipped_x_any [cross]: 1
+cg_cross_ignore_scalar_range_wide.cp_cmd.any: 1
+cg_cross_ignore_scalar_range_wide.cp_data.low_to_zero: 1
+cg_cross_ignore_scalar_range_wide.data_cmd.low_to_zero_x_any [cross]: 1
+cg_cross_ignore_signed.cp_cmd.read: 3
+cg_cross_ignore_signed.cp_cmd.write: 3
+cg_cross_ignore_signed.cp_data.one: 1
+cg_cross_ignore_signed.cp_data.three: 2
+cg_cross_ignore_signed.cp_data.two: 2
+cg_cross_ignore_signed.cp_data.zero: 1
+cg_cross_ignore_signed.data_cmd.three_x_read [cross]: 1
+cg_cross_ignore_signed.data_cmd.three_x_write [cross]: 1
+cg_cross_ignore_signed.data_cmd.two_x_read [cross]: 1
+cg_cross_ignore_signed.data_cmd.two_x_write [cross]: 1
+cg_cross_ignore_signed_array.cp_cmd.any: 2
+cg_cross_ignore_signed_array.cp_data.values: 2
+cg_cross_ignore_signed_array.data_cmd.values[0]_x_any [cross]: 1
+cg_cross_ignore_signed_array_clipped.cp_cmd.any: 2
+cg_cross_ignore_signed_array_clipped.cp_data.values: 2
+cg_cross_ignore_signed_array_clipped.data_cmd.values[0]_x_any [cross]: 1
+cg_cross_ignore_signed_array_wide.cp_cmd.any: 2
+cg_cross_ignore_signed_array_wide.cp_data.values: 2
+cg_cross_ignore_signed_array_wide.data_cmd.values[0]_x_any [cross]: 1
+cg_cross_ignore_signed_negative.cp_cmd.read: 6
+cg_cross_ignore_signed_negative.cp_cmd.write: 6
+cg_cross_ignore_signed_negative.cp_data.neg_four: 2
+cg_cross_ignore_signed_negative.cp_data.neg_one: 2
+cg_cross_ignore_signed_negative.cp_data.neg_three: 2
+cg_cross_ignore_signed_negative.cp_data.neg_two: 2
+cg_cross_ignore_signed_negative.cp_data.one: 2
+cg_cross_ignore_signed_negative.cp_data.zero: 2
+cg_cross_ignore_signed_negative.data_cmd.one_x_read [cross]: 1
+cg_cross_ignore_signed_negative.data_cmd.one_x_write [cross]: 1
+cg_cross_ignore_signed_negative.data_cmd.zero_x_read [cross]: 1
+cg_cross_ignore_signed_negative.data_cmd.zero_x_write [cross]: 1
+cg_cross_ignore_signed_wide.cp_cmd.any: 2
+cg_cross_ignore_signed_wide.cp_data.neg_one: 1
+cg_cross_ignore_signed_wide.cp_data.one: 1
+cg_cross_ignore_signed_wide.data_cmd.one_x_any [cross]: 1
+cg_cross_ignore_wildcard.cp_cmd.any: 2
+cg_cross_ignore_wildcard.cp_data.high: 1
+cg_cross_ignore_wildcard.cp_data.low: 1
+cg_cross_ignore_wildcard.data_cmd.high_x_any [cross]: 1
+cg_cross_ignore_wildcard_array.cp_cmd.any: 4
+cg_cross_ignore_wildcard_array.cp_data.patterns: 4
+cg_cross_ignore_wildcard_array.data_cmd.patterns[1]_x_any [cross]: 1
+cg_cross_ignore_wildcard_array.data_cmd.patterns[2]_x_any [cross]: 1
+cg_cross_ignore_wildcard_array.data_cmd.patterns[3]_x_any [cross]: 1
+cg_cross_ignore_wildcard_array_narrow.cp_cmd.any: 4
+cg_cross_ignore_wildcard_array_narrow.cp_data.values: 4
+cg_cross_ignore_wildcard_array_narrow.data_cmd.values[1]_x_any [cross]: 1
+cg_cross_ignore_wildcard_array_narrow.data_cmd.values[2]_x_any [cross]: 1
+cg_cross_ignore_wildcard_array_narrow.data_cmd.values[3]_x_any [cross]: 1
+cg_cross_ignore_wildcard_intersect.cp_cmd.any: 3
+cg_cross_ignore_wildcard_intersect.cp_data.high: 1
+cg_cross_ignore_wildcard_intersect.cp_data.low: 1
+cg_cross_ignore_wildcard_intersect.cp_data.middle: 1
+cg_cross_ignore_wildcard_intersect.data_cmd.high_x_any [cross]: 1
+cg_cross_ignore_wildcard_narrow.cp_cmd.any: 2
+cg_cross_ignore_wildcard_narrow.cp_data.low: 1
+cg_cross_ignore_wildcard_narrow.cp_data.neg_one: 1
+cg_cross_ignore_wildcard_narrow.data_cmd.low_x_any [cross]: 1
+cg_cross_ignore_wildcard_narrow.data_cmd.neg_one_x_any [cross]: 1
+cg_cross_name_collision.cp_cmd.any: 2
+cg_cross_name_collision.cp_data.values: 1
+cg_cross_name_collision.cp_data.values_0_: 1
+cg_cross_name_collision.data_cmd.values[0]_x_any [cross]: 1
+cg_cross_name_collision.data_cmd.values_0__x_any [cross]: 1
 cg_def_cross.axc.a0_x_read [cross]: 1
 cg_def_cross.axc.a0_x_write [cross]: 0
 cg_def_cross.axc.a1_x_read [cross]: 0

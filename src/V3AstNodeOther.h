@@ -1121,6 +1121,73 @@ public:
     bool isArray() const { return m_isArray; }
     void isArray(bool flag) { m_isArray = flag; }
 };
+class AstCoverCrossBin final : public AstNode {
+    // User-declared bin for a coverage cross
+    // @astgen op1 := selectp : AstCoverCrossBinSel
+    // @astgen op2 := iffp : Optional[AstNodeExpr]
+    const string m_name;  // Cross-bin name
+    const VCoverBinsType m_type;  // Bin type, currently BINS_IGNORE
+
+public:
+    AstCoverCrossBin(FileLine* fl, const string& name, VCoverBinsType type,
+                     AstCoverCrossBinSel* selectp, AstNodeExpr* iffp = nullptr)
+        : ASTGEN_SUPER_CoverCrossBin(fl)
+        , m_name{name}
+        , m_type{type} {
+        UASSERT(selectp, "AstCoverCrossBin requires a selection expression");
+        this->selectp(selectp);
+        this->iffp(iffp);
+    }
+    ASTGEN_MEMBERS_AstCoverCrossBin;
+    void dump(std::ostream& str) const override;
+    void dumpJson(std::ostream& str) const override;
+    bool sameNode(const AstNode* samep) const override {
+        const AstCoverCrossBin* const asamep = VN_DBG_AS(samep, CoverCrossBin);
+        return m_name == asamep->m_name && m_type == asamep->m_type;
+    }
+    string name() const override VL_MT_STABLE { return m_name; }
+    VCoverBinsType binsType() const { return m_type; }
+};
+class AstCoverCrossBinSel final : public AstNode {
+    // Selects Cartesian-product tuples for a user-declared cross bin
+    // @astgen op1 := lhsp : Optional[AstCoverCrossBinSel]
+    // @astgen op2 := rhsp : Optional[AstCoverCrossBinSel]
+    // @astgen op3 := rangesp : List[AstNodeExpr]
+    const VCoverCrossBinSelType m_type;  // Selection operation
+    const string m_coverpointName;  // Coverpoint selected by binsof
+    const string m_binName;  // Optional bin selected by binsof
+    bool m_negated = false;  // Negated binsof selection
+
+public:
+    AstCoverCrossBinSel(FileLine* fl, const string& coverpointName, const string& binName = "")
+        : ASTGEN_SUPER_CoverCrossBinSel(fl)
+        , m_type{VCoverCrossBinSelType::BINSOF}
+        , m_coverpointName{coverpointName}
+        , m_binName{binName} {}
+    AstCoverCrossBinSel(FileLine* fl, VCoverCrossBinSelType type, AstCoverCrossBinSel* lhsp,
+                        AstCoverCrossBinSel* rhsp)
+        : ASTGEN_SUPER_CoverCrossBinSel(fl)
+        , m_type{type} {
+        UASSERT(type == VCoverCrossBinSelType::LOG_AND || type == VCoverCrossBinSelType::LOG_OR,
+                "Logical cross-bin selector requires && or ||");
+        UASSERT(lhsp && rhsp, "Logical cross-bin selector requires two operands");
+        this->lhsp(lhsp);
+        this->rhsp(rhsp);
+    }
+    ASTGEN_MEMBERS_AstCoverCrossBinSel;
+    void dump(std::ostream& str) const override;
+    void dumpJson(std::ostream& str) const override;
+    bool sameNode(const AstNode* samep) const override {
+        const AstCoverCrossBinSel* const asamep = VN_DBG_AS(samep, CoverCrossBinSel);
+        return m_type == asamep->m_type && m_coverpointName == asamep->m_coverpointName
+               && m_binName == asamep->m_binName && m_negated == asamep->m_negated;
+    }
+    VCoverCrossBinSelType selectType() const { return m_type; }
+    const string& coverpointName() const { return m_coverpointName; }
+    const string& binName() const { return m_binName; }
+    bool negated() const { return m_negated; }
+    void negated(bool flag) { m_negated = flag; }
+};
 class AstCoverOption final : public AstNode {
     // Coverage-option assignment
     // @astgen op1 := valuep : AstNodeExpr
@@ -2792,6 +2859,7 @@ class AstCoverCross final : public AstNodeFuncCovItem {
     // @astgen op2 := optionsp : List[AstCoverOption]     // post-LinkParse only
     // @astgen op3 := rawBodyp : List[AstNode]  // Parse: raw cross_body items;
     //                                          // post-LinkParse: empty
+    // @astgen op4 := binsp    : List[AstCoverCrossBin]  // post-LinkParse only
 public:
     AstCoverCross(FileLine* fl, const string& name, AstCoverpointRef* itemsp)
         : ASTGEN_SUPER_CoverCross(fl, name) {

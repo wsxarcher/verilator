@@ -193,9 +193,30 @@ module t (
       bins bin_or_with = binsof(a) || binsof(a) with (a);
       bins bin_and_with = binsof(a) && binsof(a) with (a);
       bins bin_multiple_fields = binsof(p.inner_packet.field);
-      // explicit cross ignore/illegal bins (unsupported)
-      ignore_bins ib_cross = binsof(a);
+      // Unsupported cross ignore-bin selector forms
+      ignore_bins ib_with = binsof(a) with (a);
+      ignore_bins ib_standalone_with = with (a);
+      ignore_bins ib_not_with = !with (a);
+      ignore_bins ib_or_with = binsof(a) || binsof(a) with (a);
+      ignore_bins ib_and_with = binsof(a) && binsof(a) with (a);
+      ignore_bins ib_func = crossfunc();
+      ignore_bins ib_iff = binsof(a) iff (!rst);
+      ignore_bins ib_tolerance
+          = binsof(a) intersect {1, [5 +/- 2]};
+      ignore_bins ib_pct_tolerance = binsof(a) intersect {[5 +%- 20.0]};
+      // Explicit cross illegal bins are unsupported
       illegal_bins lib_cross = binsof(a);
+    }
+  endgroup
+
+  covergroup cg_cross_ignore_dynamic(int omit);
+    cp_a: coverpoint a {bins all_a = {[0 : 3]};}
+    cp_b: coverpoint b {bins all_b = {[0 : 3]};}
+    ab: cross cp_a, cp_b {
+      ignore_bins arg_value = binsof(cp_a) intersect {omit};
+      ignore_bins arg_range = binsof(cp_a) intersect {[0 : omit]};
+      ignore_bins real_value = binsof(cp_a) intersect {1.5};
+      ignore_bins real_range = binsof(cp_a) intersect {[0 : 1.5]};
     }
   endgroup
 

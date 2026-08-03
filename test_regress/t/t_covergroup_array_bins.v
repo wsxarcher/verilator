@@ -90,7 +90,17 @@ module t;
     cpB: coverpoint sel {
       bins lo = {1};
     }
-    cross cpA, cpB;
+    cross cpA, cpB {
+      ignore_bins unsupported = binsof(cpA.cumulative);
+    }
+  endgroup
+
+  // cg10: out-of-domain singleton values are excluded rather than wrapped to sel==0.
+  covergroup cg10;
+    cp: coverpoint sel {
+      bins scalar_outside = {4};
+      bins values[] = {0, 4};
+    }
   endgroup
 
   initial begin
@@ -103,6 +113,7 @@ module t;
     cg7 cg7_inst;
     cg8 cg8_inst;
     cg9 cg9_inst;
+    cg10 cg10_inst;
 
     cg_inst = new();
     cg2_inst = new();
@@ -113,6 +124,7 @@ module t;
     cg7_inst = new();
     cg8_inst = new();
     cg9_inst = new();
+    cg10_inst = new();
 
     // Hit first array bin value (1)
     data = 1;
@@ -191,6 +203,11 @@ module t;
     wide = 1;
     cg8_inst.sample();
     `checkr(cg8_inst.get_inst_coverage(), 50.0);
+
+    // Value 4 is outside sel's domain, so the sole resolved bin is covered.
+    sel = 0;
+    cg10_inst.sample();
+    `checkr(cg10_inst.get_inst_coverage(), 100.0);
 
     // Exercise cg9 (crossed cpA with an ignored cumulative array bin, legacy path)
     wide = 5;

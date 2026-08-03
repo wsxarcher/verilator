@@ -7202,8 +7202,9 @@ bins_or_options<nodep>:  // ==IEEE: bins_or_options
         |       yILLEGAL_BINS idAny/*bin_identifier*/ bins_orBraE '=' id/*cover_point_id*/ yWITH__PAREN '(' cgexpr ')' iffE
                         { $$ = nullptr; BBCOVERIGN($<fl>6, "Unsupported: 'with' in cover bin"); DEL($8, $10); }
         |       yWILDCARD yBINS idAny/*bin_identifier*/ bins_orBraE '=' '{' range_list '}' iffE
-                        { $$ = new AstCoverBin{$<fl>3, *$3, $7, false, false, true};
-                          DEL($9); }
+                        { AstCoverBin* const binp = new AstCoverBin{$<fl>3, *$3, $7, false, false, true};
+                          if ($4) binp->isArray(true);
+                          $$ = binp; DEL($9); }
         |       yWILDCARD yIGNORE_BINS idAny/*bin_identifier*/ bins_orBraE '=' '{' range_list '}' iffE
                         { $$ = new AstCoverBin{$<fl>3, *$3, $7, true, false, true};
                           DEL($9); }
@@ -7396,11 +7397,125 @@ cross_body_item<nodep>:  // ==IEEE: cross_body_item
         //                      // IEEE: bins_selection - for now, we ignore explicit cross bins
         |       yBINS idAny/*new-bin_identifier*/ '=' select_expression iffE ';'
                         { $$ = nullptr; BBCOVERIGN($1, "Unsupported: explicit coverage cross bins"); DEL($4, $5); }
-        |       yIGNORE_BINS idAny/*new-bin_identifier*/ '=' select_expression iffE ';'
-                        { $$ = nullptr; BBCOVERIGN($1, "Unsupported: explicit coverage cross bins"); DEL($4, $5); }
+        |       yIGNORE_BINS idAny/*new-bin_identifier*/ '=' cross_ignore_expression iffE ';'
+                        {
+                          if ($5) {
+                              $5->v3warn(COVERIGN, "Unsupported: 'iff' on coverage cross ignore_bins");
+                              DEL($4, $5);
+                              $$ = nullptr;
+                          } else if ($4) {
+                              $$ = new AstCoverCrossBin{$1, *$2, VCoverBinsType::BINS_IGNORE,
+                                                       VN_AS($4, CoverCrossBinSel)};
+                          } else {
+                              $$ = nullptr;
+                          }
+                        }
         |       yILLEGAL_BINS idAny/*new-bin_identifier*/ '=' select_expression iffE ';'
                         { $$ = nullptr; BBCOVERIGN($1, "Unsupported: explicit coverage cross bins"); DEL($4, $5); }
         |       error ';'                               { $$ = nullptr; }  // LCOV_EXCL_LINE
+        ;
+
+cross_ignore_expression<nodep>:  // IEEE: select_expression subset for cross ignore_bins
+                cross_ignore_expression_r
+                        { $$ = $1; }
+        |       cross_ignore_expression yP_ANDAND cross_ignore_expression
+                        {
+                          if ($1 && $3) {
+                              $$ = new AstCoverCrossBinSel{$2, VCoverCrossBinSelType::LOG_AND,
+                                                          VN_AS($1, CoverCrossBinSel),
+                                                          VN_AS($3, CoverCrossBinSel)};
+                          } else {
+                              DEL($1, $3);
+                              $$ = nullptr;
+                          }
+                        }
+        |       cross_ignore_expression yP_OROR cross_ignore_expression
+                        {
+                          if ($1 && $3) {
+                              $$ = new AstCoverCrossBinSel{$2, VCoverCrossBinSelType::LOG_OR,
+                                                          VN_AS($1, CoverCrossBinSel),
+                                                          VN_AS($3, CoverCrossBinSel)};
+                          } else {
+                              DEL($1, $3);
+                              $$ = nullptr;
+                          }
+                        }
+        ;
+
+cross_ignore_expression_r<nodep>:
+                yBINSOF '(' cross_ignore_bins_expression ')'
+                        { $$ = $3; }
+        |       '!' yBINSOF '(' cross_ignore_bins_expression ')'
+                        {
+                          AstCoverCrossBinSel* const selp = VN_AS($4, CoverCrossBinSel);
+                          selp->negated(true);
+                          $$ = selp;
+                        }
+        |       yBINSOF '(' cross_ignore_bins_expression ')' yINTERSECT
+                '{' cross_ignore_range_list '}'
+                        {
+                          if ($7) {
+                              AstCoverCrossBinSel* const selp = VN_AS($3, CoverCrossBinSel);
+                              selp->addRangesp(VN_AS($7, NodeExpr));
+                              $$ = selp;
+                          } else {
+                              DEL($3);
+                              $$ = nullptr;
+                          }
+                        }
+        |       '!' yBINSOF '(' cross_ignore_bins_expression ')' yINTERSECT
+                '{' cross_ignore_range_list '}'
+                        {
+                          if ($8) {
+                              AstCoverCrossBinSel* const selp = VN_AS($4, CoverCrossBinSel);
+                              selp->addRangesp(VN_AS($8, NodeExpr));
+                              selp->negated(true);
+                              $$ = selp;
+                          } else {
+                              DEL($4);
+                              $$ = nullptr;
+                          }
+                        }
+        |       yWITH__PAREN '(' cgexpr ')'
+                        { $$ = nullptr; BBCOVERIGN($1, "Unsupported: 'with' in coverage select expression"); DEL($3); }
+        |       '!' yWITH__PAREN '(' cgexpr ')'
+                        { $$ = nullptr; BBCOVERIGN($1, "Unsupported: 'with' in coverage select expression"); DEL($4); }
+        |       cross_ignore_expression_r yWITH__PAREN '(' cgexpr ')'
+                        { $$ = nullptr; BBCOVERIGN($2, "Unsupported: 'with' in coverage select expression"); DEL($1, $4); }
+        |       '(' cross_ignore_expression ')'          { $$ = $2; }
+        |       idAny '(' list_of_argumentsE ')'
+                        { $$ = nullptr; BBCOVERIGN($<fl>1, "Unsupported: function call in coverage select expression"); DEL($3); }
+        ;
+
+cross_ignore_bins_expression<nodep>:  // IEEE: bins_expression subset
+                idAny
+                        { $$ = new AstCoverCrossBinSel{$<fl>1, *$1}; }
+        |       idAny '.' idAny
+                        { $$ = new AstCoverCrossBinSel{$<fl>1, *$1, *$3}; }
+        ;
+
+cross_ignore_range_list<nodep>:
+                cross_ignore_value_range
+                        { $$ = $1; }
+        |       cross_ignore_range_list ',' cross_ignore_value_range
+                        {
+                          if ($1 && $3) {
+                              $$ = addNextNull($1, $3);
+                          } else {
+                              DEL($1, $3);
+                              $$ = nullptr;
+                          }
+                        }
+        ;
+
+cross_ignore_value_range<nodeExprp>:
+                cgexpr                                  { $$ = $1; }
+        |       '[' cgexpr ':' cgexpr ']'
+                        { $$ = new AstInsideRange{$1, $2, $4}; }
+        |       '[' cgexpr yP_PLUSSLASHMINUS cgexpr ']'
+                        { $$ = nullptr; BBCOVERIGN($1, "Unsupported: covergroup value range '[...]'"); DEL($2, $4); }
+        |       '[' cgexpr yP_PLUSPCTMINUS cgexpr ']'
+                        { $$ = nullptr; BBCOVERIGN($1, "Unsupported: covergroup value range '[...]'"); DEL($2, $4); }
         ;
 
 select_expression<nodep>:  // ==IEEE: select_expression

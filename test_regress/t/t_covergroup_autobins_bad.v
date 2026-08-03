@@ -71,6 +71,7 @@ module t;
   covergroup cg6;
     cp1: coverpoint cp_wide {
       bins b_huge[] = {[0:$]};  // open '[lo:$]' over 16-bit coverpoint exceeds bin limit
+      bins b_real[] = {[0.0 : 1.0]};  // non-integral array-bin range bounds
     }
   endgroup
 

@@ -225,17 +225,38 @@
 %Warning-COVERIGN: t/t_covergroup_unsup.v:195:7: Unsupported: explicit coverage cross bins
   195 |       bins bin_multiple_fields = binsof(p.inner_packet.field);
       |       ^~~~
-%Warning-COVERIGN: t/t_covergroup_unsup.v:197:30: Unsupported: 'binsof' in coverage select expression
-  197 |       ignore_bins ib_cross = binsof(a);
-      |                              ^~~~~~
-%Warning-COVERIGN: t/t_covergroup_unsup.v:197:7: Unsupported: explicit coverage cross bins
-  197 |       ignore_bins ib_cross = binsof(a);
-      |       ^~~~~~~~~~~
-%Warning-COVERIGN: t/t_covergroup_unsup.v:198:32: Unsupported: 'binsof' in coverage select expression
-  198 |       illegal_bins lib_cross = binsof(a);
+%Warning-COVERIGN: t/t_covergroup_unsup.v:197:39: Unsupported: 'with' in coverage select expression
+  197 |       ignore_bins ib_with = binsof(a) with (a);
+      |                                       ^~~~
+%Warning-COVERIGN: t/t_covergroup_unsup.v:198:40: Unsupported: 'with' in coverage select expression
+  198 |       ignore_bins ib_standalone_with = with (a);
+      |                                        ^~~~
+%Warning-COVERIGN: t/t_covergroup_unsup.v:199:33: Unsupported: 'with' in coverage select expression
+  199 |       ignore_bins ib_not_with = !with (a);
+      |                                 ^
+%Warning-COVERIGN: t/t_covergroup_unsup.v:200:55: Unsupported: 'with' in coverage select expression
+  200 |       ignore_bins ib_or_with = binsof(a) || binsof(a) with (a);
+      |                                                       ^~~~
+%Warning-COVERIGN: t/t_covergroup_unsup.v:201:56: Unsupported: 'with' in coverage select expression
+  201 |       ignore_bins ib_and_with = binsof(a) && binsof(a) with (a);
+      |                                                        ^~~~
+%Warning-COVERIGN: t/t_covergroup_unsup.v:202:29: Unsupported: function call in coverage select expression
+  202 |       ignore_bins ib_func = crossfunc();
+      |                             ^~~~~~~~~
+%Warning-COVERIGN: t/t_covergroup_unsup.v:203:43: Unsupported: 'iff' on coverage cross ignore_bins
+  203 |       ignore_bins ib_iff = binsof(a) iff (!rst);
+      |                                           ^
+%Warning-COVERIGN: t/t_covergroup_unsup.v:205:37: Unsupported: covergroup value range '[...]'
+  205 |           = binsof(a) intersect {1, [5 +/- 2]};
+      |                                     ^
+%Warning-COVERIGN: t/t_covergroup_unsup.v:206:59: Unsupported: covergroup value range '[...]'
+  206 |       ignore_bins ib_pct_tolerance = binsof(a) intersect {[5 +%- 20.0]};
+      |                                                           ^
+%Warning-COVERIGN: t/t_covergroup_unsup.v:208:32: Unsupported: 'binsof' in coverage select expression
+  208 |       illegal_bins lib_cross = binsof(a);
       |                                ^~~~~~
-%Warning-COVERIGN: t/t_covergroup_unsup.v:198:7: Unsupported: explicit coverage cross bins
-  198 |       illegal_bins lib_cross = binsof(a);
+%Warning-COVERIGN: t/t_covergroup_unsup.v:208:7: Unsupported: explicit coverage cross bins
+  208 |       illegal_bins lib_cross = binsof(a);
       |       ^~~~~~~~~~~~
 %Warning-COVERIGN: t/t_covergroup_unsup.v:104:18: Ignoring unsupported coverage cross option: 'comment'
   104 |     cross a, b { option.comment = "cross"; option.weight = 12; option.per_instance = 1; }
@@ -300,7 +321,23 @@
                                                 : ... note: In instance 't'
   177 |     cross a, b {
       |           ^
-%Warning-COVERIGN: t/t_covergroup_unsup.v:209:5: Unsupported: 'covergroup' clocking event on member variable
+%Warning-COVERIGN: t/t_covergroup_unsup.v:216:55: Ignoring unsupported coverage cross ignore_bins selector with non-constant value.
+                                                : ... note: In instance 't'
+  216 |       ignore_bins arg_value = binsof(cp_a) intersect {omit};
+      |                                                       ^~~~
+%Warning-COVERIGN: t/t_covergroup_unsup.v:217:55: Ignoring unsupported coverage cross ignore_bins selector with non-constant range bound.
+                                                : ... note: In instance 't'
+  217 |       ignore_bins arg_range = binsof(cp_a) intersect {[0 : omit]};
+      |                                                       ^
+%Warning-COVERIGN: t/t_covergroup_unsup.v:218:56: Ignoring unsupported coverage cross ignore_bins selector with non-integral value.
+                                                : ... note: In instance 't'
+  218 |       ignore_bins real_value = binsof(cp_a) intersect {1.5};
+      |                                                        ^~~
+%Warning-COVERIGN: t/t_covergroup_unsup.v:219:56: Ignoring unsupported coverage cross ignore_bins selector with non-integral range bound.
+                                                : ... note: In instance 't'
+  219 |       ignore_bins real_range = binsof(cp_a) intersect {[0 : 1.5]};
+      |                                                        ^
+%Warning-COVERIGN: t/t_covergroup_unsup.v:230:5: Unsupported: 'covergroup' clocking event on member variable
                                                : ... note: In instance 't'
-  209 |     covergroup cov1 @m_z;
+  230 |     covergroup cov1 @m_z;
       |     ^~~~~~~~~~

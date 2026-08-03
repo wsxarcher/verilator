@@ -1,0 +1,18 @@
+%Error: t/t_covergroup_cross_ignore_bad.v:20:43: Coverage cross selector references coverpoint 'cp_c' that is not part of this cross (IEEE 1800-2023 19.6.1).
+                                               : ... note: In instance 't'
+   20 |       ignore_bins bad_coverpoint = binsof(cp_c);
+      |                                           ^~~~
+        ... See the manual at https://verilator.org/verilator_doc.html?v=latest for more assistance.
+%Error: t/t_covergroup_cross_ignore_bad.v:21:36: Coverage cross selector references unknown bin 'cp_a.missing' (IEEE 1800-2023 19.6.1).
+                                               : ... note: In instance 't'
+   21 |       ignore_bins bad_bin = binsof(cp_a.missing);
+      |                                    ^~~~
+%Error: t/t_covergroup_cross_ignore_bad.v:22:57: Four-state (x/z) value in coverage cross selector; values must be two-state constants.
+                                               : ... note: In instance 't'
+   22 |       ignore_bins bad_x_value = binsof(cp_a) intersect {2'bx};
+      |                                                         ^~~~
+%Error: t/t_covergroup_cross_ignore_bad.v:23:57: Four-state (x/z) value in coverage cross selector range; range bounds must be two-state constants.
+                                               : ... note: In instance 't'
+   23 |       ignore_bins bad_x_range = binsof(cp_a) intersect {[0 : 2'bx]};
+      |                                                         ^
+%Error: Exiting due to
