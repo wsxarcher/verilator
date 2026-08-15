@@ -785,6 +785,16 @@ string AstVar::vlEnumDir() const {
         if (basicp->keyword() == VBasicDTypeKwd::BIT) out += "|VLVF_BITVAR";
     }
     if (isNet()) out += "|VLVF_NET";
+    const AstNodeDType* aggregateDTypep = dtypep()->skipRefp();
+    while (const AstUnpackArrayDType* const arrayp = VN_CAST(aggregateDTypep, UnpackArrayDType)) {
+        aggregateDTypep = arrayp->subDTypep()->skipRefp();
+    }
+    if (const AstNodeUOrStructDType* const aggregatep
+        = VN_CAST(aggregateDTypep, NodeUOrStructDType)) {
+        if (aggregatep->packed()) {
+            out += VN_IS(aggregatep, StructDType) ? "|VLVF_PACKED_STRUCT" : "|VLVF_PACKED_UNION";
+        }
+    }
     return out;
 }
 

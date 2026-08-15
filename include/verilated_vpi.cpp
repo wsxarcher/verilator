@@ -222,6 +222,10 @@ public:
     const VerilatedVar* varp() const { return m_varp; }
     const VerilatedScope* scopep() const { return m_scopep; }
     bool isStructOrUnion() const {
+        return varp()->vltype() == VLVT_STRUCT || varp()->vltype() == VLVT_UNION
+               || varp()->isPackedAggregate();
+    }
+    bool isUnpackedStructOrUnion() const {
         return varp()->vltype() == VLVT_STRUCT || varp()->vltype() == VLVT_UNION;
     }
     // Returns the number of the currently indexed dimension (starting at -1 for none).
@@ -386,6 +390,8 @@ class VerilatedVpioVar VL_NOT_FINAL : public VerilatedVpioVarBase {
     uint32_t m_entSize = 0;  // memoized variable size
     uint32_t m_bitOffset = 0;
     int32_t m_partselBits = -1;  // Part-select width, -1 means no part-select active
+    std::unique_ptr<VerilatedVpioVar> m_parentp;
+    bool m_structUnionMember = false;
     std::string m_name;
     std::string m_fullNameOverride;
 
@@ -398,6 +404,7 @@ public:
         : VerilatedVpioVarBase{varp, scopep} {
         m_entSize = varp->entSize();
         m_varDatap = varp->datap();
+        m_bitOffset = varp->bitOffset();
         if (_vl_vpi_find_unescaped_dot(varp->name())) {
             m_name = _vl_vpi_member_local_name(varp->name());
         }
@@ -407,6 +414,7 @@ public:
         : VerilatedVpioVarBase{varp, scopep} {
         m_entSize = varp->entSize();
         m_varDatap = datap;
+        m_bitOffset = varp->bitOffset();
         m_name = name;
         m_fullNameOverride = fullname;
     }
@@ -420,9 +428,15 @@ public:
             m_fullNameOverride = vop->m_fullNameOverride;
             m_partselBits = vop->m_partselBits;
             m_bitOffset = vop->m_bitOffset;
+            if (vop->m_parentp) { m_parentp.reset(new VerilatedVpioVar{vop->m_parentp.get()}); }
+            m_structUnionMember = vop->m_structUnionMember;
             // Not copying m_prevDatap, must be nullptr
         }
     }
+    VerilatedVpioVar(const VerilatedVpioVar& vop)
+        : VerilatedVpioVar{&vop} {}
+    VerilatedVpioVar(VerilatedVpioVar&& vop) noexcept
+        : VerilatedVpioVar{&vop} {}
     ~VerilatedVpioVar() override {
         if (m_prevDatap) VL_DO_CLEAR(delete[] m_prevDatap, m_prevDatap = nullptr);
     }
@@ -433,22 +447,37 @@ public:
     uint32_t bitOffset() const override { return m_bitOffset; }
     int32_t partselBits() const { return m_partselBits; }
     uint32_t bitSize() const {
-        if (isStructOrUnion() && !isIndexedDimUnpacked()) return 0;
+        if (isUnpackedStructOrUnion() && !isIndexedDimUnpacked()) return 0;
         if (m_partselBits >= 0) return static_cast<uint32_t>(m_partselBits);
         return VerilatedVpioVarBase::bitSize();
     }
     uint32_t size() const override {
-        if (isStructOrUnion() && !isIndexedDimUnpacked()) return 0;
+        if (isUnpackedStructOrUnion() && !isIndexedDimUnpacked()) return 0;
         if (m_partselBits >= 0) return static_cast<uint32_t>(m_partselBits);
         return VerilatedVpioVarBase::size();
     }
     const VerilatedRange* rangep() const override {
-        if (isStructOrUnion() && !isIndexedDimUnpacked()) return nullptr;
+        if (isUnpackedStructOrUnion() && !isIndexedDimUnpacked()) return nullptr;
         return VerilatedVpioVarBase::rangep();
     }
     uint32_t entSize() const { return m_entSize; }
     const std::vector<int32_t>& index() const { return m_index; }
+    bool isStructUnionMember() const { return m_structUnionMember; }
     const char* name() const override { return m_name.empty() ? varp()->name() : m_name.c_str(); }
+    VerilatedVpioVar* parent() const {
+        if (m_parentp) return new VerilatedVpioVar{m_parentp.get()};
+        if (m_index.empty() && m_partselBits < 0) return nullptr;
+
+        auto* const ret = new VerilatedVpioVar{this};
+        ret->m_index.clear();
+        ret->m_indexedDim = -1;
+        ret->m_varDatap = varp()->datap();
+        ret->m_bitOffset = varp()->bitOffset();
+        ret->m_partselBits = -1;
+        ret->m_parentp.reset();
+        ret->m_structUnionMember = false;
+        return ret;
+    }
     // Create a part-selected view of this variable with the given bit range [hi:lo].
     VerilatedVpioVar* withPartSelect(int32_t hi, int32_t lo) const {
         if (isIndexedDimUnpacked()) return nullptr;
@@ -479,11 +508,14 @@ public:
         auto* ret = new VerilatedVpioVar{this};
         ret->m_bitOffset += normalized_lo;
         ret->m_partselBits = width;
+        ret->m_parentp.reset(new VerilatedVpioVar{this});
+        ret->m_structUnionMember = false;
         return ret;
     }
     VerilatedVpioVar* withIndex(int32_t index) const {
         if (VL_UNLIKELY(indexedDim() + 1 >= varp()->dims())) return nullptr;
 
+        const bool indexingUnpacked = isIndexedDimUnpacked();
         auto ret = new VerilatedVpioVar{this};
         ret->m_index.push_back(index);
         ret->m_indexedDim++;
@@ -492,41 +524,62 @@ public:
         for (int dim = maxDim(isIndexedDimUnpacked()); dim > indexedDim() + 1; dim--)
             chunkSize *= varp()->range(dim)->elements();
 
-        if (isIndexedDimUnpacked())
+        if (indexingUnpacked)
             ret->m_varDatap = (static_cast<uint8_t*>(ret->m_varDatap))
                               + entSize() * chunkSize * (index - get_range()->low());
         else
             // Packed arrays are stored left-to-right, not high index to low index
             ret->m_bitOffset += chunkSize * std::abs(index - get_range()->right());
 
+        const bool firstUnpackedIndex = indexingUnpacked && indexedDim() < 0;
+        const bool firstPackedIndex = !indexingUnpacked && indexedDim() + 1 == varp()->udims();
+        if (firstUnpackedIndex || firstPackedIndex) {
+            ret->m_parentp.reset(new VerilatedVpioVar{this});
+            ret->m_structUnionMember = false;
+        }
         return ret;
     }
     VerilatedVpioVar* withMember(const VerilatedVar* memberVarp) const {
         const char* const parentName = varp()->name();
         const std::string memberName = memberVarp->name();
         const size_t parentLen = std::strlen(parentName);
-
-        void* const parentDatap = varp()->datap();
-        void* const memberDatap = memberVarp->datap();
-        if (VL_UNLIKELY(!parentDatap) || VL_UNLIKELY(!memberDatap)) return nullptr;
-        const auto offset
-            = static_cast<uint8_t*>(memberDatap) - static_cast<uint8_t*>(parentDatap);
-
         const std::string localName = _vl_vpi_member_local_name(memberVarp->name());
+        const std::string fullName = std::string{fullname()} + memberName.substr(parentLen);
 
-        return new VerilatedVpioVar{memberVarp, scopep(),
-                                    static_cast<uint8_t*>(varDatap()) + offset, localName,
-                                    std::string{fullname()} + memberName.substr(parentLen)};
+        VerilatedVpioVar* retp;
+        if (varp()->isPackedAggregate()) {
+            if (VL_UNLIKELY(memberVarp->bitOffset() < varp()->bitOffset())) return nullptr;
+            retp = new VerilatedVpioVar{memberVarp, scopep(), varDatap(), localName, fullName};
+            retp->m_bitOffset = m_bitOffset + memberVarp->bitOffset() - varp()->bitOffset();
+        } else {
+            void* const parentDatap = varp()->datap();
+            void* const memberDatap = memberVarp->datap();
+            if (VL_UNLIKELY(!parentDatap) || VL_UNLIKELY(!memberDatap)) return nullptr;
+            const auto offset
+                = static_cast<uint8_t*>(memberDatap) - static_cast<uint8_t*>(parentDatap);
+            retp = new VerilatedVpioVar{memberVarp, scopep(),
+                                        static_cast<uint8_t*>(varDatap()) + offset, localName,
+                                        fullName};
+        }
+        retp->m_parentp.reset(new VerilatedVpioVar{this});
+        retp->m_structUnionMember = true;
+        return retp;
     }
     uint32_t type() const override {
         uint32_t type;
         // TODO have V3EmitCSyms.cpp put vpiType directly into constant table
-        switch (varp()->vltype()) {
-        case VLVT_REAL: type = vpiRealVar; break;
-        case VLVT_STRING: type = vpiStringVar; break;
-        case VLVT_STRUCT: type = varp()->isNet() ? vpiStructNet : vpiStructVar; break;
-        case VLVT_UNION: type = varp()->isNet() ? vpiUnionNet : vpiUnionVar; break;
-        default: type = varp()->isBitVar() ? vpiBitVar : vpiReg; break;
+        if (varp()->isPackedStruct()) {
+            type = varp()->isNet() ? vpiStructNet : vpiStructVar;
+        } else if (varp()->isPackedUnion()) {
+            type = varp()->isNet() ? vpiUnionNet : vpiUnionVar;
+        } else {
+            switch (varp()->vltype()) {
+            case VLVT_REAL: type = vpiRealVar; break;
+            case VLVT_STRING: type = vpiStringVar; break;
+            case VLVT_STRUCT: type = varp()->isNet() ? vpiStructNet : vpiStructVar; break;
+            case VLVT_UNION: type = varp()->isNet() ? vpiUnionNet : vpiUnionVar; break;
+            default: type = varp()->isBitVar() ? vpiBitVar : vpiReg; break;
+            }
         }
         if (isIndexedDimUnpacked())
             return isStructOrUnion() && varp()->isNet() ? vpiNetArray : vpiRegArray;
@@ -2857,6 +2910,13 @@ vpiHandle vpi_handle_by_name(PLI_BYTE8* namep, vpiHandle scope) {
     }
     if (!varp) return nullptr;
 
+    if (!varp->isParam() && _vl_vpi_find_unescaped_dot(varp->name())) {
+        if (VerilatedVpioVar* const memberp
+            = _vl_vpi_handle_dotted_indexed_member_by_name(scopeAndName)) {
+            return memberp->castVpiHandle();
+        }
+    }
+
     // Create the initial variable handle
     vpiHandle resultHandle;
     if (varp->isParam()) {
@@ -2967,7 +3027,8 @@ vpiHandle vpi_handle(PLI_INT32 type, vpiHandle object) {
     case vpiParent: {
         const VerilatedVpioVar* const vop = VerilatedVpioVar::castp(object);
         if (VL_UNLIKELY(!vop)) return nullptr;
-        return (new VerilatedVpioVar{vop->varp(), vop->scopep()})->castVpiHandle();
+        VerilatedVpioVar* const parentp = vop->parent();
+        return parentp ? parentp->castVpiHandle() : nullptr;
     }
     default:
         VL_VPI_WARNING_(__FILE__, __LINE__, "%s: Unsupported type %s, nothing will be returned",
@@ -3104,9 +3165,14 @@ PLI_INT32 vpi_get(PLI_INT32 property, vpiHandle object) {
         if (VL_UNLIKELY(!vop)) return vpiUndefined;
         return vop->varp()->isSigned();
     }
+    case vpiStructUnionMember: {
+        const VerilatedVpioVar* const vop = VerilatedVpioVar::castp(object);
+        if (VL_UNLIKELY(!vop)) return vpiUndefined;
+        return vop->isStructUnionMember();
+    }
     case vpiPacked: {
         const VerilatedVpioVarBase* const vop = VerilatedVpioVarBase::castp(object);
-        if (VL_LIKELY(vop && vop->isStructOrUnion())) return 0;
+        if (VL_LIKELY(vop && vop->isStructOrUnion())) return vop->varp()->isPackedAggregate();
         [[fallthrough]];
     }
     default:

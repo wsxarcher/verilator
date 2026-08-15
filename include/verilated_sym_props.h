@@ -172,6 +172,9 @@ public:
     bool isSigned() const { return ((m_vlflags & VLVF_SIGNED) != 0); }
     bool isBitVar() const { return ((m_vlflags & VLVF_BITVAR) != 0); }
     bool isNet() const { return ((m_vlflags & VLVF_NET) != 0); }
+    bool isPackedStruct() const { return ((m_vlflags & VLVF_PACKED_STRUCT) != 0); }
+    bool isPackedUnion() const { return ((m_vlflags & VLVF_PACKED_UNION) != 0); }
+    bool isPackedAggregate() const { return isPackedStruct() || isPackedUnion(); }
     int udims() const VL_MT_SAFE { return m_unpacked.size(); }
     int pdims() const VL_MT_SAFE { return m_packed.size(); }
     int dims() const VL_MT_SAFE { return pdims() + udims(); }
@@ -264,6 +267,7 @@ class VerilatedVar final : public VerilatedVarProps {
     // MEMBERS
     void* const m_datap;  // Location of data
     const char* const m_namep;  // Name - slowpath
+    const uint32_t m_bitOffset;  // Bit offset within packed aggregate storage
     std::unique_ptr<const VerilatedForceControlSignals>
         m_forceControlSignals;  // Force control signals
 
@@ -276,6 +280,9 @@ protected:
     VerilatedVar(const char* namep, void* datap, VerilatedVarType vltype,
                  VerilatedVarFlags vlflags, int udims, int pdims, bool isParam, uint32_t entSize);
     VerilatedVar(const char* namep, void* datap, VerilatedVarType vltype,
+                 VerilatedVarFlags vlflags, int udims, int pdims, bool isParam, uint32_t entSize,
+                 uint32_t bitOffset);
+    VerilatedVar(const char* namep, void* datap, VerilatedVarType vltype,
                  VerilatedVarFlags vlflags, int udims, int pdims, bool isParam,
                  std::unique_ptr<const VerilatedForceControlSignals> forceControlSignals);
 
@@ -285,6 +292,7 @@ public:
     // ACCESSORS
     void* datap() const { return m_datap; }
     const char* name() const { return m_namep; }
+    uint32_t bitOffset() const { return m_bitOffset; }
     bool isParam() const { return m_isParam; }
     const VerilatedForceControlSignals* forceControlSignals() const {
         return m_forceControlSignals.get();
@@ -305,6 +313,7 @@ inline VerilatedVar::VerilatedVar(const char* namep, void* datap, VerilatedVarTy
     : VerilatedVarProps{vltype, vlflags, udims, pdims}
     , m_datap{datap}
     , m_namep{namep}
+    , m_bitOffset{0}
     , m_isParam{isParam} {}
 inline VerilatedVar::VerilatedVar(const char* namep, void* datap, VerilatedVarType vltype,
                                   VerilatedVarFlags vlflags, int udims, int pdims, bool isParam,
@@ -312,6 +321,15 @@ inline VerilatedVar::VerilatedVar(const char* namep, void* datap, VerilatedVarTy
     : VerilatedVarProps{vltype, vlflags, udims, pdims, entSize}
     , m_datap{datap}
     , m_namep{namep}
+    , m_bitOffset{0}
+    , m_isParam{isParam} {}
+inline VerilatedVar::VerilatedVar(const char* namep, void* datap, VerilatedVarType vltype,
+                                  VerilatedVarFlags vlflags, int udims, int pdims, bool isParam,
+                                  uint32_t entSize, uint32_t bitOffset)
+    : VerilatedVarProps{vltype, vlflags, udims, pdims, entSize}
+    , m_datap{datap}
+    , m_namep{namep}
+    , m_bitOffset{bitOffset}
     , m_isParam{isParam} {}
 inline VerilatedVar::VerilatedVar(
     const char* namep, void* datap, VerilatedVarType vltype, VerilatedVarFlags vlflags, int udims,
@@ -320,6 +338,7 @@ inline VerilatedVar::VerilatedVar(
     : VerilatedVarProps{vltype, vlflags, udims, pdims}
     , m_datap{datap}
     , m_namep{namep}
+    , m_bitOffset{0}
     , m_forceControlSignals{std::move(forceControlSignals)}
     , m_isParam{isParam} {}
 inline VerilatedVar::~VerilatedVar() = default;

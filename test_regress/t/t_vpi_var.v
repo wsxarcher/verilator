@@ -103,6 +103,36 @@ extern "C" int mon_check();
 
   packed_leaf_struct_t packed_struct_array_signal [1:0] /*verilator public_flat_rw*/;
 
+  typedef logic [1:0] data_width_t;
+
+  typedef struct packed {
+    logic [31:0] addr;
+    logic [31:0] data;
+    data_width_t width;
+  } wide_packed_struct_t;
+
+  wide_packed_struct_t wide_packed_struct_array_signal [1:0] /*verilator public_flat_rw*/;
+
+  typedef struct packed {
+    logic [3:0] inner_x;
+    logic [3:0] inner_y;
+  } nested_packed_inner_t;
+
+  typedef struct packed {
+    logic [31:0] head;
+    nested_packed_inner_t inner;
+    logic [31:0] tail;
+  } nested_packed_outer_t;
+
+  nested_packed_outer_t nested_packed_struct_signal /*verilator public_flat_rw*/;
+
+  typedef union packed {
+    logic [31:0] word;
+    logic [3:0][7:0] bytes;
+  } packed_union_t;
+
+  packed_union_t packed_union_signal /*verilator public_flat_rw*/;
+
   typedef struct {
     logic [6:0] unsigned_member;
     logic signed [6:0] signed_member;

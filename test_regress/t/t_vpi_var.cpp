@@ -502,6 +502,10 @@ int _mon_check_unpacked_struct_members() {
     const char* p;
     PLI_INT32 d;
     t_vpi_value tmpValue;
+    const auto localMemberName = [](const char* namep) {
+        const char* const dotp = std::strrchr(namep, '.');
+        return dotp ? dotp + 1 : namep;
+    };
 
     // unpacked struct port members
     tmpValue.format = vpiIntVal;
@@ -515,6 +519,10 @@ int _mon_check_unpacked_struct_members() {
         CHECK_RESULT_Z(vpi_handle(vpiLeftRange, vh101));
         p = vpi_get_str(vpiType, vh101);
         CHECK_RESULT_CSTR(p, "vpiStructVar");
+        {
+            CHECK_RESULT(vpi_get(vpiStructUnionMember, vh101), 0);
+            CHECK_RESULT_Z(vpi_handle(vpiParent, vh101));
+        }
 
         TestVpiHandle vh102
             = vpi_handle_by_name((PLI_BYTE8*)"t.unpacked_struct_port.member_a", NULL);
@@ -528,6 +536,14 @@ int _mon_check_unpacked_struct_members() {
         CHECK_RESULT_NZ(vpi_handle(vpiLeftRange, vh102));
         CHECK_RESULT_Z(vpi_iterate(vpiMember, vh102));
         CHECK_RESULT_Z(vpi_handle_by_name((PLI_BYTE8*)"member_a", vh102));
+        {
+            CHECK_RESULT(vpi_get(vpiStructUnionMember, vh102), 1);
+            TestVpiHandle vh102Parent = vpi_handle(vpiParent, vh102);
+            CHECK_RESULT_NZ(vh102Parent);
+            CHECK_RESULT(vpi_get(vpiType, vh102Parent), vpiStructVar);
+            p = vpi_get_str(vpiFullName, vh102Parent);
+            CHECK_RESULT_CSTR(p, "t.unpacked_struct_port");
+        }
 
         TestVpiHandle vh103
             = vpi_handle_by_name((PLI_BYTE8*)"t.unpacked_struct_port.member_b", NULL);
@@ -669,6 +685,18 @@ int _mon_check_unpacked_struct_members() {
         CHECK_RESULT_NZ(vh122);
         CHECK_RESULT(vpi_get(vpiType, vh122), vpiReg);
         CHECK_RESULT(vpi_get(vpiSize, vh122), 4);
+        {
+            CHECK_RESULT(vpi_get(vpiStructUnionMember, vh122), 1);
+            TestVpiHandle vh122Parent = vpi_handle(vpiParent, vh122);
+            CHECK_RESULT_NZ(vh122Parent);
+            CHECK_RESULT(vpi_get(vpiType, vh122Parent), vpiStructVar);
+            p = vpi_get_str(vpiFullName, vh122Parent);
+            CHECK_RESULT_CSTR(p, "t.nested_struct_port.outer_inner");
+            TestVpiHandle vh122Grandparent = vpi_handle(vpiParent, vh122Parent);
+            CHECK_RESULT_NZ(vh122Grandparent);
+            p = vpi_get_str(vpiFullName, vh122Grandparent);
+            CHECK_RESULT_CSTR(p, "t.nested_struct_port");
+        }
 
         // Leaf reachable relative to the intermediate struct handle
         TestVpiHandle vh123 = vpi_handle_by_name((PLI_BYTE8*)"inner_y", vh121);
@@ -909,35 +937,49 @@ int _mon_check_unpacked_struct_members() {
         CHECK_RESULT(tmpValue.value.integer, 0xace0);
     }
 
-    // unpacked array of a packed struct (element is a plain vector, not vpiStructVar)
+    // unpacked array of a packed struct
     {
         TestVpiHandle vh210 = VPI_HANDLE("packed_struct_array_signal");
         CHECK_RESULT_NZ(vh210);
         CHECK_RESULT(vpi_get(vpiType, vh210), vpiRegArray);
         CHECK_RESULT(vpi_get(vpiSize, vh210), 2);
+        {
+            CHECK_RESULT(vpi_get(vpiStructUnionMember, vh210), 0);
+            CHECK_RESULT_Z(vpi_handle(vpiParent, vh210));
+        }
 
         TestVpiHandle vh211 = vpi_handle_by_index(vh210, 0);
         CHECK_RESULT_NZ(vh211);
-        CHECK_RESULT(vpi_get(vpiType, vh211), vpiReg);
+        CHECK_RESULT(vpi_get(vpiType, vh211), vpiStructVar);
         CHECK_RESULT(vpi_get(vpiSize, vh211), 8);
+        {
+            CHECK_RESULT(vpi_get(vpiVector, vh211), 1);
+            CHECK_RESULT(vpi_get(vpiScalar, vh211), 0);
+            CHECK_RESULT(vpi_get(vpiStructUnionMember, vh211), 0);
+            TestVpiHandle vh211Parent = vpi_handle(vpiParent, vh211);
+            CHECK_RESULT_NZ(vh211Parent);
+            CHECK_RESULT(vpi_get(vpiType, vh211Parent), vpiRegArray);
+            p = vpi_get_str(vpiFullName, vh211Parent);
+            CHECK_RESULT_CSTR(p, "t.packed_struct_array_signal");
+        }
 
         s_vpi_value putValue;
         putValue.format = vpiIntVal;
-        putValue.value.integer = 0x5a;
+        putValue.value.integer = 0x5b;
         vpi_put_value(vh211, &putValue, NULL, vpiNoDelay);
         vpi_get_value(vh211, &tmpValue);
-        CHECK_RESULT(tmpValue.value.integer, 0x5a);
+        CHECK_RESULT(tmpValue.value.integer, 0x5b);
 
         TestVpiHandle vh212 = vpi_handle_by_index(vh210, 1);
         CHECK_RESULT_NZ(vh212);
-        CHECK_RESULT(vpi_get(vpiType, vh212), vpiReg);
+        CHECK_RESULT(vpi_get(vpiType, vh212), vpiStructVar);
         putValue.value.integer = 0x33;
         vpi_put_value(vh212, &putValue, NULL, vpiNoDelay);
         vpi_get_value(vh212, &tmpValue);
         CHECK_RESULT(tmpValue.value.integer, 0x33);
 
         vpi_get_value(vh211, &tmpValue);
-        CHECK_RESULT(tmpValue.value.integer, 0x5a);
+        CHECK_RESULT(tmpValue.value.integer, 0x5b);
 
         TestVpiHandle vh213 = vpi_handle_by_name(
             const_cast<PLI_BYTE8*>(TestSimulator::rooted("packed_struct_array_signal[1]")),
@@ -945,6 +987,336 @@ int _mon_check_unpacked_struct_members() {
         CHECK_RESULT_NZ(vh213);
         vpi_get_value(vh213, &tmpValue);
         CHECK_RESULT(tmpValue.value.integer, 0x33);
+
+        {
+            CHECK_RESULT(vpi_get(vpiPacked, vh211), 1);
+            p = vpi_get_str(vpiType, vh211);
+            CHECK_RESULT_CSTR(p, "vpiStructVar");
+
+            TestVpiHandle vh214
+                = vpi_handle_by_name(const_cast<PLI_BYTE8*>(TestSimulator::rooted(
+                                         "packed_struct_array_signal[0].packed_member_a")),
+                                     nullptr);
+            CHECK_RESULT_NZ(vh214);
+            CHECK_RESULT(vpi_get(vpiType, vh214), vpiReg);
+            CHECK_RESULT(vpi_get(vpiSize, vh214), 7);
+            p = vpi_get_str(vpiName, vh214);
+            CHECK_RESULT_CSTR(localMemberName(p), "packed_member_a");
+            p = vpi_get_str(vpiFullName, vh214);
+            CHECK_RESULT_CSTR(p, "t.packed_struct_array_signal[0].packed_member_a");
+            CHECK_RESULT(vpi_get(vpiStructUnionMember, vh214), 1);
+            TestVpiHandle vh214Parent = vpi_handle(vpiParent, vh214);
+            CHECK_RESULT_NZ(vh214Parent);
+            CHECK_RESULT(vpi_get(vpiType, vh214Parent), vpiStructVar);
+            CHECK_RESULT(vpi_get(vpiPacked, vh214Parent), 1);
+            p = vpi_get_str(vpiFullName, vh214Parent);
+            CHECK_RESULT_CSTR(p, "t.packed_struct_array_signal[0]");
+            TestVpiHandle vh214Grandparent = vpi_handle(vpiParent, vh214Parent);
+            CHECK_RESULT_NZ(vh214Grandparent);
+            p = vpi_get_str(vpiFullName, vh214Grandparent);
+            CHECK_RESULT_CSTR(p, "t.packed_struct_array_signal");
+            vpi_get_value(vh214, &tmpValue);
+            CHECK_RESULT(tmpValue.value.integer, 0x2d);
+
+            TestVpiHandle vh215
+                = vpi_handle_by_name(const_cast<PLI_BYTE8*>(TestSimulator::rooted(
+                                         "packed_struct_array_signal[1].packed_member_a")),
+                                     nullptr);
+            CHECK_RESULT_NZ(vh215);
+            CHECK_RESULT(vpi_get(vpiStructUnionMember, vh215), 1);
+            TestVpiHandle vh215Parent = vpi_handle(vpiParent, vh215);
+            CHECK_RESULT_NZ(vh215Parent);
+            p = vpi_get_str(vpiFullName, vh215Parent);
+            CHECK_RESULT_CSTR(p, "t.packed_struct_array_signal[1]");
+            putValue.value.integer = 0x52;
+            vpi_put_value(vh215, &putValue, NULL, vpiNoDelay);
+            vpi_get_value(vh212, &tmpValue);
+            CHECK_RESULT(tmpValue.value.integer, 0xa5);
+
+            TestVpiHandle vh216 = vpi_iterate(vpiMember, vh211);
+            CHECK_RESULT_NZ(vh216);
+            std::set<std::string> packedMemberNames;
+            while (TestVpiHandle member = vpi_scan(vh216)) {
+                CHECK_RESULT(vpi_get(vpiStructUnionMember, member), 1);
+                TestVpiHandle memberParent = vpi_handle(vpiParent, member);
+                CHECK_RESULT_NZ(memberParent);
+                p = vpi_get_str(vpiFullName, memberParent);
+                CHECK_RESULT_CSTR(p, "t.packed_struct_array_signal[0]");
+                packedMemberNames.insert(localMemberName(vpi_get_str(vpiName, member)));
+            }
+            vh216.freed();  // IEEE 37.2.2 vpi_scan at end does a vpi_release_handle
+            CHECK_RESULT(packedMemberNames.count("packed_member_a"), 1);
+            CHECK_RESULT(packedMemberNames.count("packed_member_b"), 1);
+        }
+    }
+
+    {
+        // A 66-bit struct checks members that cross 32-bit WData boundaries.
+        TestVpiHandle vh220 = VPI_HANDLE("wide_packed_struct_array_signal");
+        CHECK_RESULT_NZ(vh220);
+        CHECK_RESULT(vpi_get(vpiType, vh220), vpiRegArray);
+        CHECK_RESULT(vpi_get(vpiStructUnionMember, vh220), 0);
+        CHECK_RESULT_Z(vpi_handle(vpiParent, vh220));
+
+        TestVpiHandle vh221 = vpi_handle_by_index(vh220, 0);
+        CHECK_RESULT_NZ(vh221);
+        CHECK_RESULT(vpi_get(vpiType, vh221), vpiStructVar);
+        CHECK_RESULT(vpi_get(vpiSize, vh221), 66);
+        CHECK_RESULT(vpi_get(vpiPacked, vh221), 1);
+        CHECK_RESULT(vpi_get(vpiVector, vh221), 1);
+        CHECK_RESULT(vpi_get(vpiScalar, vh221), 0);
+        CHECK_RESULT(vpi_get(vpiStructUnionMember, vh221), 0);
+        TestVpiHandle vh221Parent = vpi_handle(vpiParent, vh221);
+        CHECK_RESULT_NZ(vh221Parent);
+        CHECK_RESULT(vpi_get(vpiType, vh221Parent), vpiRegArray);
+        p = vpi_get_str(vpiFullName, vh221Parent);
+        CHECK_RESULT_CSTR(p, "t.wide_packed_struct_array_signal");
+        TestVpiHandle vh221Left = vpi_handle(vpiLeftRange, vh221);
+        TestVpiHandle vh221Right = vpi_handle(vpiRightRange, vh221);
+        CHECK_RESULT_NZ(vh221Left);
+        CHECK_RESULT_NZ(vh221Right);
+        vpi_get_value(vh221Left, &tmpValue);
+        CHECK_RESULT(tmpValue.value.integer, 65);
+        vpi_get_value(vh221Right, &tmpValue);
+        CHECK_RESULT(tmpValue.value.integer, 0);
+
+        TestVpiHandle vh222 = vpi_handle_by_name(const_cast<PLI_BYTE8*>(TestSimulator::rooted(
+                                                     "wide_packed_struct_array_signal[0].addr")),
+                                                 nullptr);
+        TestVpiHandle vh223 = vpi_handle_by_name(const_cast<PLI_BYTE8*>(TestSimulator::rooted(
+                                                     "wide_packed_struct_array_signal[0].data")),
+                                                 nullptr);
+        TestVpiHandle vh224 = vpi_handle_by_name(const_cast<PLI_BYTE8*>(TestSimulator::rooted(
+                                                     "wide_packed_struct_array_signal[0].width")),
+                                                 nullptr);
+        CHECK_RESULT_NZ(vh222);
+        CHECK_RESULT_NZ(vh223);
+        CHECK_RESULT_NZ(vh224);
+        CHECK_RESULT(vpi_get(vpiSize, vh222), 32);
+        CHECK_RESULT(vpi_get(vpiSize, vh223), 32);
+        CHECK_RESULT(vpi_get(vpiSize, vh224), 2);
+        CHECK_RESULT(vpi_get(vpiVector, vh222), 1);
+        CHECK_RESULT(vpi_get(vpiStructUnionMember, vh222), 1);
+        CHECK_RESULT(vpi_get(vpiStructUnionMember, vh223), 1);
+        CHECK_RESULT(vpi_get(vpiStructUnionMember, vh224), 1);
+        TestVpiHandle vh222Parent = vpi_handle(vpiParent, vh222);
+        CHECK_RESULT_NZ(vh222Parent);
+        p = vpi_get_str(vpiFullName, vh222Parent);
+        CHECK_RESULT_CSTR(p, "t.wide_packed_struct_array_signal[0]");
+
+        s_vpi_value putValue;
+        putValue.format = vpiIntVal;
+        putValue.value.integer = static_cast<PLI_INT32>(UINT32_C(0xd2345678));
+        vpi_put_value(vh222, &putValue, NULL, vpiNoDelay);
+        putValue.value.integer = static_cast<PLI_INT32>(UINT32_C(0x9abcdef0));
+        vpi_put_value(vh223, &putValue, NULL, vpiNoDelay);
+        putValue.value.integer = 2;
+        vpi_put_value(vh224, &putValue, NULL, vpiNoDelay);
+
+        s_vpi_value wideValue;
+        wideValue.format = vpiVectorVal;
+        vpi_get_value(vh221, &wideValue);
+        CHECK_RESULT_HEX(wideValue.value.vector[0].aval, UINT32_C(0x6af37bc2));
+        CHECK_RESULT_HEX(wideValue.value.vector[1].aval, UINT32_C(0x48d159e2));
+        CHECK_RESULT_HEX(wideValue.value.vector[2].aval, UINT32_C(0x00000003));
+
+        TestVpiHandle vh225 = vpi_handle_by_name(const_cast<PLI_BYTE8*>(TestSimulator::rooted(
+                                                     "wide_packed_struct_array_signal[1].addr")),
+                                                 nullptr);
+        CHECK_RESULT_NZ(vh225);
+        CHECK_RESULT(vpi_get(vpiStructUnionMember, vh225), 1);
+        TestVpiHandle vh225Parent = vpi_handle(vpiParent, vh225);
+        CHECK_RESULT_NZ(vh225Parent);
+        p = vpi_get_str(vpiFullName, vh225Parent);
+        CHECK_RESULT_CSTR(p, "t.wide_packed_struct_array_signal[1]");
+        putValue.value.integer = static_cast<PLI_INT32>(UINT32_C(0x89abcdef));
+        vpi_put_value(vh225, &putValue, NULL, vpiNoDelay);
+
+        TestVpiHandle vh226 = vpi_handle_by_name(const_cast<PLI_BYTE8*>(TestSimulator::rooted(
+                                                     "wide_packed_struct_array_signal[1].data")),
+                                                 nullptr);
+        CHECK_RESULT_NZ(vh226);
+        putValue.value.integer = 0x01234567;
+        vpi_put_value(vh226, &putValue, NULL, vpiNoDelay);
+
+        TestVpiHandle vh227 = vpi_handle_by_name(const_cast<PLI_BYTE8*>(TestSimulator::rooted(
+                                                     "wide_packed_struct_array_signal[1].width")),
+                                                 nullptr);
+        CHECK_RESULT_NZ(vh227);
+        putValue.value.integer = 1;
+        vpi_put_value(vh227, &putValue, NULL, vpiNoDelay);
+
+        TestVpiHandle vh228 = vpi_handle_by_index(vh220, 1);
+        CHECK_RESULT_NZ(vh228);
+        vpi_get_value(vh228, &wideValue);
+        CHECK_RESULT_HEX(wideValue.value.vector[0].aval, UINT32_C(0x048d159d));
+        CHECK_RESULT_HEX(wideValue.value.vector[1].aval, UINT32_C(0x26af37bc));
+        CHECK_RESULT_HEX(wideValue.value.vector[2].aval, UINT32_C(0x00000002));
+
+        vpi_get_value(vh221, &wideValue);
+        CHECK_RESULT_HEX(wideValue.value.vector[0].aval, UINT32_C(0x6af37bc2));
+        CHECK_RESULT_HEX(wideValue.value.vector[1].aval, UINT32_C(0x48d159e2));
+        CHECK_RESULT_HEX(wideValue.value.vector[2].aval, UINT32_C(0x00000003));
+    }
+
+    {
+        // Nested members retain the outer aggregate's WData storage type and absolute offset.
+        TestVpiHandle vh230 = VPI_HANDLE("nested_packed_struct_signal");
+        CHECK_RESULT_NZ(vh230);
+        CHECK_RESULT(vpi_get(vpiType, vh230), vpiStructVar);
+        CHECK_RESULT(vpi_get(vpiSize, vh230), 72);
+        CHECK_RESULT(vpi_get(vpiPacked, vh230), 1);
+        CHECK_RESULT(vpi_get(vpiVector, vh230), 1);
+        CHECK_RESULT(vpi_get(vpiStructUnionMember, vh230), 0);
+        CHECK_RESULT_Z(vpi_handle(vpiParent, vh230));
+
+        TestVpiHandle vh231 = vpi_handle_by_name(
+            const_cast<PLI_BYTE8*>(TestSimulator::rooted("nested_packed_struct_signal.head")),
+            nullptr);
+        TestVpiHandle vh232 = vpi_handle_by_name(
+            const_cast<PLI_BYTE8*>(TestSimulator::rooted("nested_packed_struct_signal.inner")),
+            nullptr);
+        TestVpiHandle vh233 = vpi_handle_by_name(const_cast<PLI_BYTE8*>(TestSimulator::rooted(
+                                                     "nested_packed_struct_signal.inner.inner_x")),
+                                                 nullptr);
+        TestVpiHandle vh234 = vpi_handle_by_name(const_cast<PLI_BYTE8*>(TestSimulator::rooted(
+                                                     "nested_packed_struct_signal.inner.inner_y")),
+                                                 nullptr);
+        TestVpiHandle vh235 = vpi_handle_by_name(
+            const_cast<PLI_BYTE8*>(TestSimulator::rooted("nested_packed_struct_signal.tail")),
+            nullptr);
+        CHECK_RESULT_NZ(vh231);
+        CHECK_RESULT_NZ(vh232);
+        CHECK_RESULT_NZ(vh233);
+        CHECK_RESULT_NZ(vh234);
+        CHECK_RESULT_NZ(vh235);
+        CHECK_RESULT(vpi_get(vpiType, vh232), vpiStructVar);
+        CHECK_RESULT(vpi_get(vpiPacked, vh232), 1);
+        CHECK_RESULT(vpi_get(vpiSize, vh232), 8);
+        CHECK_RESULT(vpi_get(vpiStructUnionMember, vh231), 1);
+        CHECK_RESULT(vpi_get(vpiStructUnionMember, vh232), 1);
+        CHECK_RESULT(vpi_get(vpiStructUnionMember, vh233), 1);
+        CHECK_RESULT(vpi_get(vpiStructUnionMember, vh234), 1);
+        CHECK_RESULT(vpi_get(vpiStructUnionMember, vh235), 1);
+
+        TestVpiHandle vh232Parent = vpi_handle(vpiParent, vh232);
+        CHECK_RESULT_NZ(vh232Parent);
+        p = vpi_get_str(vpiFullName, vh232Parent);
+        CHECK_RESULT_CSTR(p, "t.nested_packed_struct_signal");
+        TestVpiHandle vh233Parent = vpi_handle(vpiParent, vh233);
+        CHECK_RESULT_NZ(vh233Parent);
+        CHECK_RESULT(vpi_get(vpiType, vh233Parent), vpiStructVar);
+        CHECK_RESULT(vpi_get(vpiPacked, vh233Parent), 1);
+        p = vpi_get_str(vpiFullName, vh233Parent);
+        CHECK_RESULT_CSTR(p, "t.nested_packed_struct_signal.inner");
+        TestVpiHandle vh233Grandparent = vpi_handle(vpiParent, vh233Parent);
+        CHECK_RESULT_NZ(vh233Grandparent);
+        p = vpi_get_str(vpiFullName, vh233Grandparent);
+        CHECK_RESULT_CSTR(p, "t.nested_packed_struct_signal");
+
+        TestVpiHandle vh236 = vpi_handle_by_name(const_cast<PLI_BYTE8*>(TestSimulator::rooted(
+                                                     "nested_packed_struct_signal.inner.inner_x")),
+                                                 nullptr);
+        CHECK_RESULT_NZ(vh236);
+        CHECK_RESULT(vpi_get(vpiStructUnionMember, vh236), 1);
+        TestVpiHandle vh236Parent = vpi_handle(vpiParent, vh236);
+        CHECK_RESULT_NZ(vh236Parent);
+        p = vpi_get_str(vpiFullName, vh236Parent);
+        CHECK_RESULT_CSTR(p, "t.nested_packed_struct_signal.inner");
+
+        TestVpiHandle vh237 = vpi_iterate(vpiMember, vh230);
+        CHECK_RESULT_NZ(vh237);
+        std::set<std::string> outerPackedMembers;
+        while (TestVpiHandle member = vpi_scan(vh237)) {
+            CHECK_RESULT(vpi_get(vpiStructUnionMember, member), 1);
+            outerPackedMembers.insert(localMemberName(vpi_get_str(vpiName, member)));
+        }
+        vh237.freed();  // IEEE 37.2.2 vpi_scan at end does a vpi_release_handle
+        CHECK_RESULT(outerPackedMembers.count("head"), 1);
+        CHECK_RESULT(outerPackedMembers.count("inner"), 1);
+        CHECK_RESULT(outerPackedMembers.count("tail"), 1);
+        CHECK_RESULT(outerPackedMembers.count("inner_x"), 0);
+
+        TestVpiHandle vh238 = vpi_iterate(vpiMember, vh232);
+        CHECK_RESULT_NZ(vh238);
+        std::set<std::string> innerPackedMembers;
+        while (TestVpiHandle member = vpi_scan(vh238)) {
+            CHECK_RESULT(vpi_get(vpiStructUnionMember, member), 1);
+            innerPackedMembers.insert(localMemberName(vpi_get_str(vpiName, member)));
+        }
+        vh238.freed();  // IEEE 37.2.2 vpi_scan at end does a vpi_release_handle
+        CHECK_RESULT(innerPackedMembers.count("inner_x"), 1);
+        CHECK_RESULT(innerPackedMembers.count("inner_y"), 1);
+
+        s_vpi_value putValue;
+        putValue.format = vpiIntVal;
+        putValue.value.integer = 0x11223344;
+        vpi_put_value(vh231, &putValue, NULL, vpiNoDelay);
+        putValue.value.integer = 0xa;
+        vpi_put_value(vh233, &putValue, NULL, vpiNoDelay);
+        putValue.value.integer = 0x5;
+        vpi_put_value(vh234, &putValue, NULL, vpiNoDelay);
+        putValue.value.integer = 0x55667788;
+        vpi_put_value(vh235, &putValue, NULL, vpiNoDelay);
+
+        s_vpi_value nestedValue;
+        nestedValue.format = vpiVectorVal;
+        vpi_get_value(vh230, &nestedValue);
+        CHECK_RESULT_HEX(nestedValue.value.vector[0].aval, UINT32_C(0x55667788));
+        CHECK_RESULT_HEX(nestedValue.value.vector[1].aval, UINT32_C(0x223344a5));
+        CHECK_RESULT_HEX(nestedValue.value.vector[2].aval, UINT32_C(0x00000011));
+    }
+
+    {
+        TestVpiHandle vh240 = VPI_HANDLE("packed_union_signal");
+        CHECK_RESULT_NZ(vh240);
+        CHECK_RESULT(vpi_get(vpiType, vh240), vpiUnionVar);
+        CHECK_RESULT(vpi_get(vpiPacked, vh240), 1);
+        CHECK_RESULT(vpi_get(vpiSize, vh240), 32);
+        CHECK_RESULT(vpi_get(vpiVector, vh240), 1);
+        CHECK_RESULT(vpi_get(vpiStructUnionMember, vh240), 0);
+        CHECK_RESULT_Z(vpi_handle(vpiParent, vh240));
+
+        TestVpiHandle vh241 = vpi_handle_by_name(
+            const_cast<PLI_BYTE8*>(TestSimulator::rooted("packed_union_signal.word")), nullptr);
+        TestVpiHandle vh242 = vpi_handle_by_name(
+            const_cast<PLI_BYTE8*>(TestSimulator::rooted("packed_union_signal.bytes")), nullptr);
+        CHECK_RESULT_NZ(vh241);
+        CHECK_RESULT_NZ(vh242);
+        CHECK_RESULT(vpi_get(vpiStructUnionMember, vh241), 1);
+        CHECK_RESULT(vpi_get(vpiStructUnionMember, vh242), 1);
+        TestVpiHandle vh241Parent = vpi_handle(vpiParent, vh241);
+        CHECK_RESULT_NZ(vh241Parent);
+        CHECK_RESULT(vpi_get(vpiType, vh241Parent), vpiUnionVar);
+        p = vpi_get_str(vpiFullName, vh241Parent);
+        CHECK_RESULT_CSTR(p, "t.packed_union_signal");
+        TestVpiHandle vh243 = vpi_iterate(vpiMember, vh240);
+        CHECK_RESULT_NZ(vh243);
+        std::set<std::string> packedUnionMembers;
+        while (TestVpiHandle member = vpi_scan(vh243)) {
+            CHECK_RESULT(vpi_get(vpiStructUnionMember, member), 1);
+            packedUnionMembers.insert(localMemberName(vpi_get_str(vpiName, member)));
+        }
+        vh243.freed();  // IEEE 37.2.2 vpi_scan at end does a vpi_release_handle
+        CHECK_RESULT(packedUnionMembers.count("word"), 1);
+        CHECK_RESULT(packedUnionMembers.count("bytes"), 1);
+        s_vpi_value putValue;
+        putValue.format = vpiIntVal;
+        putValue.value.integer = static_cast<PLI_INT32>(UINT32_C(0xdeadbeef));
+        vpi_put_value(vh241, &putValue, NULL, vpiNoDelay);
+        vpi_get_value(vh242, &tmpValue);
+        CHECK_RESULT_HEX(static_cast<uint32_t>(tmpValue.value.integer), UINT32_C(0xdeadbeef));
+        TestVpiHandle vh244 = vpi_handle_by_index(vh242, 0);
+        CHECK_RESULT_NZ(vh244);
+        CHECK_RESULT(vpi_get(vpiSize, vh244), 8);
+        CHECK_RESULT(vpi_get(vpiStructUnionMember, vh244), 0);
+        vpi_get_value(vh244, &tmpValue);
+        CHECK_RESULT_HEX(static_cast<uint32_t>(tmpValue.value.integer), UINT32_C(0xef));
+        TestVpiHandle vh244Parent = vpi_handle(vpiParent, vh244);
+        CHECK_RESULT_NZ(vh244Parent);
+        CHECK_RESULT(vpi_get(vpiStructUnionMember, vh244Parent), 1);
+        p = vpi_get_str(vpiFullName, vh244Parent);
+        CHECK_RESULT_CSTR(p, "t.packed_union_signal.bytes");
     }
 
     // array of unpacked structs with unpacked-array members
@@ -1883,7 +2255,7 @@ int _mon_check_putget_str(p_cb_data cb_data) {
         // setup and install
         for (int i = 1; i <= 6; i++) {
             char buf[32];
-            VL_SNPRINTF(buf, sizeof(buf), TestSimulator::rooted("arr[%d].arr"), i);
+            snprintf(buf, sizeof(buf), TestSimulator::rooted("arr[%d].arr"), i);
             CHECK_RESULT_NZ(data[i].scope = vpi_handle_by_name((PLI_BYTE8*)buf, NULL));
             CHECK_RESULT_NZ(data[i].sig = vpi_handle_by_name((PLI_BYTE8*)"sig", data[i].scope));
             CHECK_RESULT_NZ(data[i].rfr = vpi_handle_by_name((PLI_BYTE8*)"rfr", data[i].scope));
@@ -1895,7 +2267,7 @@ int _mon_check_putget_str(p_cb_data cb_data) {
 
         for (int i = 1; i <= 6; i++) {
             char buf[32];
-            VL_SNPRINTF(buf, sizeof(buf), TestSimulator::rooted("subs[%d].subsub"), i);
+            snprintf(buf, sizeof(buf), TestSimulator::rooted("subs[%d].subsub"), i);
             CHECK_RESULT_NZ(data[i].scope = vpi_handle_by_name((PLI_BYTE8*)buf, NULL));
         }
 
