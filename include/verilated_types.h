@@ -231,7 +231,7 @@ extern std::string VL_TO_STRING(SData lhs);
 extern std::string VL_TO_STRING(IData lhs);
 extern std::string VL_TO_STRING(QData lhs);
 extern std::string VL_TO_STRING(double lhs);
-inline std::string VL_TO_STRING(const std::string& obj) { return "\"" + obj + "\""; }
+extern std::string VL_TO_STRING(const std::string& obj) VL_PURE;
 template <std::size_t N_Words>
 inline std::string VL_TO_STRING(const VlWide<N_Words>& obj) {
     return VL_TO_STRING_W(N_Words, obj);

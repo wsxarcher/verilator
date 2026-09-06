@@ -754,7 +754,8 @@ string V3Number::displayed(FileLine* fl, const string& vformat,
             (void)VL_SNPRINTF(tmp, MAX_SPRINTF_DOUBLE_SIZE, "%g", n);
             return tmp;
         }
-        if (formatAttr.isString()) return '"' + toString() + '"';
+        if (formatAttr.isString())
+            return '"' + V3OutFormatter::quoteNameControls(toString()) + '"';
         if (formatAttr.isComplex()) return toString();
         return "%p";
     }
