@@ -1243,6 +1243,12 @@ package Vt_debug_emitv___024unit;
                 bins one = {'sh1};
                 bins two = {'sh2};
             };
+            cp_clk: coverpoint cg_clk;
+          crossed: cross cp_m, cp_clk {
+                bins selected = binsof(cp_m.one) iff (
+                                                      cg_clk);
+                bins all_clocks = binsof(cp_clk);
+            }
         endfunction
         int signed __Vint;
         struct {

@@ -1101,6 +1101,47 @@ public:
     bool isArray() const { return m_isArray; }
     void isArray(bool flag) { m_isArray = flag; }
 };
+class AstCoverBinsof final : public AstNode {
+    // A binsof selection of a coverpoint or one of its named bins
+    // @astgen op1 := pointp : AstCoverpointRef
+    string m_name;  // Selected bin name, or empty for all bins of the coverpoint
+
+public:
+    AstCoverBinsof(FileLine* fl, AstCoverpointRef* pointp)
+        : ASTGEN_SUPER_CoverBinsof(fl) {
+        this->pointp(pointp);
+    }
+    ASTGEN_MEMBERS_AstCoverBinsof;
+    void dump(std::ostream& str) const override;
+    void dumpJson(std::ostream& str) const override;
+    string name() const override VL_MT_STABLE { return m_name; }
+    void name(const string& name) override { m_name = name; }
+    bool sameNode(const AstNode* samep) const override {
+        return m_name == VN_AS(samep, CoverBinsof)->m_name;
+    }
+};
+class AstCoverCrossBin final : public AstNode {
+    // A named cross bin and its selection expression
+    // @astgen op1 := selectp : Optional[AstNode]  // Null for unsupported selections
+    // @astgen op2 := iffp : Optional[AstNodeExpr]
+    const string m_name;  // Declared cross bin name
+
+public:
+    AstCoverCrossBin(FileLine* fl, const string& name, AstNode* selectp, AstNodeExpr* iffp)
+        : ASTGEN_SUPER_CoverCrossBin(fl)
+        , m_name{name} {
+        this->selectp(selectp);
+        this->iffp(iffp);
+    }
+    ASTGEN_MEMBERS_AstCoverCrossBin;
+    void dump(std::ostream& str) const override;
+    void dumpJson(std::ostream& str) const override;
+    string name() const override VL_MT_STABLE { return m_name; }
+    bool sameNode(const AstNode* samep) const override {
+        return m_name == VN_AS(samep, CoverCrossBin)->m_name;
+    }
+    static void selfTest();
+};
 class AstCoverOption final : public AstNode {
     // Coverage-option assignment
     // @astgen op1 := valuep : AstNodeExpr
@@ -2811,8 +2852,8 @@ public:
 class AstCoverCross final : public AstNodeFuncCovItem {
     // @astgen op1 := itemsp   : List[AstCoverpointRef]
     // @astgen op2 := optionsp : List[AstCoverOption]     // post-LinkParse only
-    // @astgen op3 := rawBodyp : List[AstNode]  // Parse: raw cross_body items;
-    //                                          // post-LinkParse: empty
+    // @astgen op3 := binsp    : List[AstNode]  // Parse: mixed cross bins/options;
+    //                                          // post-LinkParse: AstCoverCrossBin only
     // @astgen op4 := iffp     : Optional[AstNodeExpr]  // Conditional sampling guard
 public:
     AstCoverCross(FileLine* fl, const string& name, AstCoverpointRef* itemsp,

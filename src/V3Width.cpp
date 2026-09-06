@@ -2066,7 +2066,11 @@ class WidthVisitor final : public VNVisitor {
         userIterateAndNext(nodep->itemsp(), nullptr);
         if (nodep->iffp()) iterateCheckBool(nodep, "iff condition", nodep->iffp(), BOTH);
         userIterateAndNext(nodep->optionsp(), nullptr);
-        userIterateAndNext(nodep->rawBodyp(), nullptr);
+        userIterateAndNext(nodep->binsp(), nullptr);
+    }
+    void visit(AstCoverCrossBin* nodep) override {
+        userIterateAndNext(nodep->selectp(), nullptr);
+        if (nodep->iffp()) iterateCheckBool(nodep, "iff condition", nodep->iffp(), BOTH);
     }
     void visit(AstCoverpoint* nodep) override {
         // The coverpoint expression is self-determined (IEEE 1800-2023 19.5).  Width it

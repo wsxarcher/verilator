@@ -1207,8 +1207,32 @@ void AstCoverBin::dumpJson(std::ostream& str) const {
     dumpJsonBoolIf(str, "isWildcard", isWildcard());
     str << ", \"binsType\": \"" << binsType().ascii() << "\"";
 }
+void AstCoverBinsof::dump(std::ostream& str) const { Super::dump(str); }
+void AstCoverBinsof::dumpJson(std::ostream& str) const { Super::dumpJson(str); }
 void AstCoverCross::dump(std::ostream& str) const { Super::dump(str); }
 void AstCoverCross::dumpJson(std::ostream& str) const { Super::dumpJson(str); }
+void AstCoverCrossBin::dump(std::ostream& str) const { Super::dump(str); }
+void AstCoverCrossBin::dumpJson(std::ostream& str) const { Super::dumpJson(str); }
+void AstCoverCrossBin::selfTest() {
+    FileLine* const fl = new FileLine{FileLine::commandLineFilename()};
+    AstCoverBinsof* const selectp = new AstCoverBinsof{fl, new AstCoverpointRef{fl, "point"}};
+    AstCoverCrossBin* const binp = new AstCoverCrossBin{fl, "bin", selectp, nullptr};
+    AstCoverCrossBin* const clonep = binp->cloneTree(false);
+    UASSERT_OBJ(binp->sameTree(clonep), binp, "Cross-bin clone must preserve its selection");
+
+    VN_AS(clonep->selectp(), CoverBinsof)->name("named");
+    UASSERT_OBJ(!binp->sameTree(clonep), binp,
+                "Named-bin and whole-coverpoint selections must differ");
+    selectp->name("named");
+    UASSERT_OBJ(binp->sameTree(clonep), binp, "Equal named-bin selections must compare equal");
+
+    AstCoverCrossBin* const otherp
+        = new AstCoverCrossBin{fl, "other", selectp->cloneTree(false), nullptr};
+    UASSERT_OBJ(!binp->sameTree(otherp), binp, "Different cross-bin names must compare unequal");
+    VL_DO_DANGLING(binp->deleteTree(), binp);
+    VL_DO_DANGLING(clonep->deleteTree(), clonep);
+    VL_DO_DANGLING(otherp->deleteTree(), otherp);
+}
 void AstCoverInc::dump(std::ostream& str) const {
     Super::dump(str);
     str << " -> ";

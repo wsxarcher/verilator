@@ -29,6 +29,11 @@ class Cls;
       bins one = {1};
       bins two = {2};
     }
+    cp_clk: coverpoint cg_clk;
+    crossed: cross cp_m, cp_clk {
+      bins selected = binsof(cp_m.one) iff (cg_clk);
+      bins all_clocks = binsof(cp_clk);
+    }
   endgroup
   covergroup cg_ref(ref int value);
     cp_ref: coverpoint value;

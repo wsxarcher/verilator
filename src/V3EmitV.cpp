@@ -354,7 +354,29 @@ class EmitVBaseVisitorConst VL_NOT_FINAL : public VNVisitorConst {
         }
         puts(";\n");
     }
-    void visit(AstCoverpointRef* nodep) override { putfs(nodep, nodep->name()); }
+    void visit(AstCoverBinsof* nodep) override {
+        putfs(nodep, "binsof(");
+        iterateConst(nodep->pointp());
+        if (!nodep->name().empty()) puts("." + nodep->name());
+        puts(")");
+    }
+    void visit(AstCoverCrossBin* nodep) override {
+        putfs(nodep, "bins " + nodep->name() + " = ");
+        iterateConstNull(nodep->selectp());
+        if (nodep->iffp()) {
+            puts(" iff (");
+            iterateConst(nodep->iffp());
+            puts(")");
+        }
+        puts(";\n");
+    }
+    void visit(AstCoverpointRef* nodep) override {
+        if (nodep->exprp()) {
+            iterateConst(nodep->exprp());
+        } else {
+            putfs(nodep, nodep->name());
+        }
+    }
     void visit(AstCoverCross* nodep) override {
         putfs(nodep, nodep->name() + ": cross ");
         for (AstNode* itemp = nodep->itemsp(); itemp; itemp = itemp->nextp()) {
@@ -366,7 +388,14 @@ class EmitVBaseVisitorConst VL_NOT_FINAL : public VNVisitorConst {
             iterateConst(nodep->iffp());
             puts(")");
         }
-        puts(";\n");
+        if (nodep->binsp() || nodep->optionsp()) {
+            puts(" {\n");
+            iterateAndNextConstNull(nodep->optionsp());
+            iterateAndNextConstNull(nodep->binsp());
+            puts("}\n");
+        } else {
+            puts(";\n");
+        }
     }
     void visit(AstCoverTransSet* nodep) override {
         puts("(");

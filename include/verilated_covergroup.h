@@ -202,12 +202,34 @@ public:
 
 //=============================================================================
 // VlCoverCross
-/// Per-instance auto cross runtime.  Holds flat uint32_t[] storage over the
+/// Per-instance cross runtime.  Holds flat uint32_t[] storage over the
 /// Cartesian product of the feeding coverpoints' Normal bins.  Each sample()
 /// walks the coverpoint hit lists (O(hits), not O(product)).  Bin names are
-/// built on demand from the coverpoints, so no per-bin name is stored.
+/// built on demand for automatic bins; explicit bins select a Normal-bin span
+/// in one dimension and replace the corresponding automatic cross bins.
 
 class VlCoverCross final : public VlCoverpointIf {
+    struct Bin final {
+        uint32_t dim;  // Selected coverpoint dimension
+        uint32_t first;  // First selected Normal bin index
+        uint32_t bins;  // Number of selected Normal bins
+        const char* name;  // Explicit bin name
+        const char* file;  // Bin declaration file
+        int line;  // Bin declaration line
+        int col;  // Bin declaration column
+        uint32_t count = 0;  // Samples matching the selection and guard
+
+        Bin(uint32_t dim, uint32_t first, uint32_t bins, const char* name, const char* file,
+            int line, int col)
+            : dim{dim}
+            , first{first}
+            , bins{bins}
+            , name{name}
+            , file{file}
+            , line{line}
+            , col{col} {}
+    };
+
     // MEMBERS
     std::string m_hier;  // "covergroup.cross"
     const char* m_file = nullptr;  // Cross declaration file (registration metadata)
@@ -223,13 +245,20 @@ class VlCoverCross final : public VlCoverpointIf {
     std::vector<uint32_t> m_cpBinCounts;  // [m_dims] Normal bin count per dimension
     std::vector<uint32_t> m_stride;  // [m_dims] Flat-index stride per dimension
     std::vector<uint32_t> m_flatCounts;  // [m_numAutoBins] Per-bin hit counts
-    std::vector<VlCoverpoint*> m_cps;  // Feeding coverpoints (the only name source)
+    std::vector<VlCoverpoint*> m_cps;  // Feeding coverpoints (automatic-bin name source)
+    std::vector<Bin> m_bins;  // Explicit bins in declaration order
+    std::vector<bool>
+        m_autoExcluded;  // Tuples replaced by explicit bins; empty for auto-only crosses
+    std::vector<uint32_t> m_autoBins;  // Retained flat indices, when explicit bins are present
 
     // PRIVATE METHODS
     void iterateProduct(VlCoverpoint* const* cps, uint32_t dim, uint32_t baseIdx);
     void incrementTuple(uint32_t idx) {
+        if (!m_autoExcluded.empty() && m_autoExcluded[idx]) return;
         if (m_flatCounts[idx]++ == 0) ++m_numCovered;
     }
+    uint32_t autoIndex(uint32_t i) const { return m_bins.empty() ? i : m_autoBins[i]; }
+    std::string autoBinName(uint32_t flat) const;
 
 public:
     // CONSTRUCTORS
@@ -239,18 +268,27 @@ public:
     // ---- configuration (from generated constructor, after coverpoints init'd) ----
     void init(const char* hier, uint32_t dims, VlCoverpoint* const* cps, const char* file,
               int line, int col);
+    /// Add a single-binsof cross bin using verilation-time resolved Normal-bin indices.
+    void addBin(uint32_t dim, uint32_t first, uint32_t bins, const char* name, const char* file,
+                int line, int col);
+    /// Retain only automatic cross bins not selected by any explicit bin.
+    void finalizeBins();
     void registerBins(VerilatedCovContext* covcontextp, const char* page);
 
     // ---- hot path (from generated sample(), after all coverpoints sampled) ----
-    void sample(VlCoverpoint* const* cps);
+    /// Sample automatic and explicit bins, optionally applying per-bin iff guards.
+    void sample(VlCoverpoint* const* cps, const bool* binIffs = nullptr);
 
     // ---- VlCoverpointIf ----
-    // A cross is a coverpoint whose bins are the auto cross bins (all Normal).
-    uint32_t binCount() const override { return m_numAutoBins; }
-    std::string binName(uint32_t flat) const override;
+    // Explicit bins precede retained automatic bins; all are Normal bins.
+    uint32_t binCount() const override {
+        return m_bins.empty() ? m_numAutoBins
+                              : static_cast<uint32_t>(m_bins.size() + m_autoBins.size());
+    }
+    std::string binName(uint32_t i) const override;
     void coverageParts(double& covered, double& total) const override {
         covered = m_numCovered;
-        total = m_numAutoBins;
+        total = binCount();
     }
 };
 

@@ -66,8 +66,13 @@ class CovergroupExprValidVisitor final : public VNVisitor {
     }
     void visit(AstCoverCross* nodep) override {
         iterateAndNextNull(nodep->itemsp());
+        scanSampleExpression(nodep->iffp());
         iterateAndNextNull(nodep->optionsp());
-        iterateAndNextNull(nodep->rawBodyp());
+        iterateAndNextNull(nodep->binsp());
+    }
+    void visit(AstCoverCrossBin* nodep) override {
+        iterateAndNextNull(nodep->selectp());
+        scanSampleExpression(nodep->iffp());
     }
     void visit(AstCoverBin* nodep) override {
         scanCoverageExpression(nodep->rangesp());
@@ -156,6 +161,12 @@ class FunctionalCoverageVisitor final : public VNVisitor {
     std::vector<AstVar*> m_cpVars;  // VlCoverpoint member, one per coverpoint
     std::vector<AstVar*> m_crossVars;  // VlCoverCross member, one per cross
     std::map<std::string, AstVar*> m_cpVarMap;  // Coverpoint name -> its VlCoverpoint member
+    struct CoverpointBins final {
+        uint32_t total = 0;  // Number of Normal bins
+        std::map<std::string, std::pair<uint32_t, uint32_t>>
+            spans;  // Declared bin name -> first Normal index and number of bins
+    };
+    std::map<AstVar*, CoverpointBins> m_cpBins;  // Runtime coverpoint -> binsof index ranges
     std::set<AstCoverCross*>
         m_droppedCrosses;  // Crosses with a bare-variable item: drop (COVERIGN)
     std::map<int, AstCDType*> m_vlCoverpointTypes;  // hit-list bound K -> "VlCoverpointT<K>" type
@@ -173,6 +184,7 @@ class FunctionalCoverageVisitor final : public VNVisitor {
         m_cpVars.clear();
         m_crossVars.clear();
         m_cpVarMap.clear();
+        m_cpBins.clear();
         m_droppedCrosses.clear();
 
         // Scan every cross item to record the coverpoints it references (the cross dimensions)
@@ -845,6 +857,11 @@ class FunctionalCoverageVisitor final : public VNVisitor {
     // Emit a 'this->m_cp.addSingleNamer/addArrayNamer(...)' statement for one bin
     AstCStmt* makeNamer(AstVar* cpVarp, AstCoverBin* binp, int count) {
         FileLine* const fl = binp->fileline();
+        CoverpointBins& bins = m_cpBins.at(cpVarp);
+        const uint32_t normalCount
+            = binp->binsType().binIsNormal() ? static_cast<uint32_t>(count < 0 ? 1 : count) : 0;
+        bins.spans.emplace(binp->name(), std::make_pair(bins.total, normalCount));
+        bins.total += normalCount;
         AstCStmt* const cs = new AstCStmt{fl};
         cs->add(memberRef(fl, cpVarp));
         // Under --protect-ids the filename and bin name flow into the coverage database
@@ -936,6 +953,7 @@ class FunctionalCoverageVisitor final : public VNVisitor {
         m_covergroupp->addMembersp(cpVarp);
         m_cpVars.push_back(cpVarp);
         m_cpVarMap[coverpointp->name()] = cpVarp;
+        m_cpBins.emplace(cpVarp, CoverpointBins{});
 
         // A cross reads this coverpoint's hit list, so clear it at the start of the
         // coverpoint's sample() contribution (before any incrementBin appends to it).
@@ -1304,9 +1322,20 @@ class FunctionalCoverageVisitor final : public VNVisitor {
 
     // Append a "{ VlCoverpoint* __Vcx_cps[] = {&cp0, &cp1, ...}; <member>.<call> }" statement.
     AstCStmt* makeCrossCpsCall(FileLine* fl, const std::vector<AstVar*>& cpVars, AstVar* cxVarp,
-                               const std::string& callText) {
+                               const std::string& callText,
+                               const std::vector<AstCoverCrossBin*>& bins = {}) {
         AstCStmt* const cs = new AstCStmt{fl};
-        cs->add("{ VlCoverpoint* __Vcx_cps[] = {");
+        cs->add("{ ");
+        if (!bins.empty()) {
+            cs->add("const bool __Vcx_iffs[] = {");
+            for (size_t i = 0; i < bins.size(); ++i) {
+                if (i) cs->add(", ");
+                cs->add(bins[i]->iffp() ? bins[i]->iffp()->cloneTree(false)
+                                        : new AstConst{fl, AstConst::BitTrue{}});
+            }
+            cs->add("}; ");
+        }
+        cs->add("VlCoverpoint* __Vcx_cps[] = {");
         for (size_t d = 0; d < cpVars.size(); ++d) {
             cs->add(d == 0 ? "&" : ", &");
             cs->add(memberRef(fl, cpVars[d]));
@@ -1318,9 +1347,70 @@ class FunctionalCoverageVisitor final : public VNVisitor {
         return cs;
     }
 
+    std::vector<AstCoverCrossBin*>
+    generateCrossBins(AstCoverCross* crossp, AstVar* cxVarp, const std::vector<AstVar*>& cpVars,
+                      const std::map<std::string, uint32_t>& dimensions) {
+        std::vector<AstCoverCrossBin*> bins;
+        std::set<std::string> names;
+        for (AstNode* itemp = crossp->binsp(); itemp; itemp = itemp->nextp()) {
+            AstCoverCrossBin* const binp = VN_AS(itemp, CoverCrossBin);
+            if (!names.emplace(binp->name()).second) {
+                binp->v3error("Duplicate cross bin " << binp->prettyNameQ()
+                                                     << " (IEEE 1800-2012 19.6.1).");
+                continue;
+            }
+            const AstCoverBinsof* const selectp = VN_AS(binp->selectp(), CoverBinsof);
+            const auto dimIt = dimensions.find(selectp->pointp()->name());
+            if (dimIt == dimensions.end()) {
+                selectp->v3error("binsof coverpoint "
+                                 << selectp->pointp()->prettyNameQ() << " is not an item of cross "
+                                 << crossp->prettyNameQ() << " (IEEE 1800-2012 19.6.1).");
+                continue;
+            }
+            const uint32_t dim = dimIt->second;
+            const CoverpointBins& cpBins = m_cpBins.at(cpVars[dim]);
+            uint32_t first = 0;
+            uint32_t count = cpBins.total;
+            if (!selectp->name().empty()) {
+                const auto binIt = cpBins.spans.find(selectp->name());
+                if (binIt == cpBins.spans.end()) {
+                    selectp->v3error("Cannot find bin " << selectp->prettyNameQ()
+                                                        << " in coverpoint "
+                                                        << selectp->pointp()->prettyNameQ()
+                                                        << " (IEEE 1800-2012 19.6.1).");
+                    continue;
+                }
+                first = binIt->second.first;
+                count = binIt->second.second;
+            }
+            if (!count) continue;  // Non-normal or empty bins select no cross products.
+            FileLine* const fl = binp->fileline();
+            const bool prot = v3Global.opt.protectIds();
+            const std::string name = V3OutFormatter::quoteNameControls(
+                VIdProtect::protectWordsIf(binp->name(), prot));
+            const std::string file
+                = V3OutFormatter::quoteNameControls(VIdProtect::protectIf(fl->filename(), prot));
+            AstCStmt* const addp = new AstCStmt{fl};
+            addp->add(memberRef(fl, cxVarp));
+            addp->add(".addBin(" + std::to_string(dim) + ", " + std::to_string(first) + ", "
+                      + std::to_string(count) + ", \"" + name + "\", \"" + file + "\", "
+                      + std::to_string(fl->lineno()) + ", " + std::to_string(fl->firstColumn())
+                      + ");");
+            m_constructorp->addStmtsp(addp);
+            bins.push_back(binp);
+        }
+        if (!bins.empty()) {
+            AstCStmt* const finishp = new AstCStmt{crossp->fileline()};
+            finishp->add(memberRef(crossp->fileline(), cxVarp));
+            finishp->add(".finalizeBins();");
+            m_constructorp->addStmtsp(finishp);
+        }
+        return bins;
+    }
+
     // Route a cross through a VlCoverCross member: emit the member, its constructor init +
     // registration, and the sample() call.  The feeding coverpoints are already generated
-    // (their hit lists drive the cross), so only O(1) generated code is needed here.
+    // (their hit lists drive the cross). Each explicit bin adds one configuration call.
     void generateCross(AstCoverCross* crossp) {
         FileLine* const fl = crossp->fileline();
         UINFO(4, "  Generating VlCoverCross member: " << crossp->name());
@@ -1333,11 +1423,13 @@ class FunctionalCoverageVisitor final : public VNVisitor {
         // Resolve and unlink the coverpoint refs, in dimension order.  Every ref resolves to a
         // known coverpoint (a cross with an unresolvable item was dropped earlier).
         std::vector<AstVar*> cpVars;
+        std::map<std::string, uint32_t> dimensions;
         for (AstNode* itemp = crossp->itemsp(); itemp;) {
             AstNode* const nextp = itemp->nextp();
             AstCoverpointRef* const refp = VN_AS(itemp, CoverpointRef);
             const auto it = m_cpVarMap.find(refp->name());
             UASSERT_OBJ(it != m_cpVarMap.end(), crossp, "Cross references an unknown coverpoint");
+            dimensions.emplace(refp->name(), static_cast<uint32_t>(cpVars.size()));
             cpVars.push_back(it->second);
             VL_DO_DANGLING(pushDeletep(refp->unlinkFrBack()), refp);
             itemp = nextp;
@@ -1364,6 +1456,8 @@ class FunctionalCoverageVisitor final : public VNVisitor {
               + VIdProtect::protectIf(fl->filename(), prot) + "\", " + std::to_string(fl->lineno())
               + ", " + std::to_string(fl->firstColumn()) + ");";
         m_constructorp->addStmtsp(makeCrossCpsCall(fl, cpVars, cxVarp, initCall));
+        const std::vector<AstCoverCrossBin*> bins
+            = generateCrossBins(crossp, cxVarp, cpVars, dimensions);
         if (v3Global.opt.coverage()) {
             const std::string page
                 = VIdProtect::protectIf("v_covergroup/" + m_covergroupp->name(), prot);
@@ -1375,7 +1469,9 @@ class FunctionalCoverageVisitor final : public VNVisitor {
 
         // sample(): after all coverpoints have sampled (cross loop runs after coverpoint loop).
         UASSERT_OBJ(m_sampleFuncp, crossp, "sample() CFunc not set for cross");
-        AstNodeStmt* const samplep = makeCrossCpsCall(fl, cpVars, cxVarp, ".sample(__Vcx_cps);");
+        AstNodeStmt* const samplep = makeCrossCpsCall(
+            fl, cpVars, cxVarp,
+            bins.empty() ? ".sample(__Vcx_cps);" : ".sample(__Vcx_cps, __Vcx_iffs);", bins);
         if (AstNodeExpr* const iffp = crossp->iffp()) {
             m_sampleFuncp->addStmtsp(new AstIf{fl, iffp->cloneTree(false), samplep});
         } else {
