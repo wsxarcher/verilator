@@ -194,6 +194,133 @@ void EmitCFunc::emitOpName(AstNode* nodep, const string& format, AstNode* lhsp, 
     putOut();
 }
 
+void EmitCFunc::emitToStringLiteral(const string& out, const string& text) {
+    puts(out + " += ");
+    putsQuoted(text);
+    puts(";\n");
+}
+
+void EmitCFunc::emitToStringNumber(const AstNodeDType* dtypep, const string& value,
+                                   const ToStringPacked* packedp) {
+    const AstBasicDType* const basicp = dtypep->skipRefp()->basicp();
+    if (basicp && basicp->isOpaque()) {
+        puts("VL_TO_STRING((" + value + "))");
+        return;
+    }
+    const ToStringPacked root{value, dtypep->width(), 0};
+    const ToStringPacked& packed = packedp ? *packedp : root;
+    if (packed.m_width > VL_QUADSIZE) {
+        puts("VL_TO_STRING_PACKED_W(" + cvtToStr(dtypep->width()) + ", " + cvtToStr(packed.m_width)
+             + ", " + cvtToStr(packed.m_lsb) + ", (" + packed.m_value + ")");
+    } else {
+        puts("VL_TO_STRING_PACKED(" + cvtToStr(dtypep->width()) + ", " + cvtToStr(packed.m_lsb)
+             + ", (" + packed.m_value + ")");
+    }
+    puts(dtypep->isSigned() ? ", true, '" : ", false, '");
+    puts(string{m_toStringNumFormat} + "')");
+}
+
+void EmitCFunc::emitToStringEnum(const AstEnumDType* dtypep, const AstNodeDType* valueDTypep,
+                                 const string& value, const string& out,
+                                 const ToStringPacked* packedp, bool nameOnly) {
+    const string enumValue = "__Venum"s + cvtToStr(m_toStringNum++);
+    if (dtypep->width() <= VL_QUADSIZE) {
+        const ToStringPacked root{value, valueDTypep->width(), 0};
+        const ToStringPacked& packed = packedp ? *packedp : root;
+        puts("const QData " + enumValue + " = ");
+        if (packed.m_width > VL_QUADSIZE) {
+            puts("VL_SEL_QWII(" + cvtToStr(packed.m_width) + ", " + packed.m_value + ", "
+                 + cvtToStr(packed.m_lsb) + ", " + cvtToStr(dtypep->width()) + ")");
+        } else {
+            puts("(static_cast<QData>(" + packed.m_value + ") >> " + cvtToStr(packed.m_lsb) + ")");
+        }
+        puts(" & VL_MASK_Q(" + cvtToStr(dtypep->width()) + ");\n");
+        puts("switch (" + enumValue + ") {\n");
+        std::set<uint64_t> seen;
+        for (const AstEnumItem* itemp = dtypep->itemsp(); itemp;
+             itemp = VN_AS(itemp->nextp(), EnumItem)) {
+            const AstConst* const constp = VN_AS(itemp->valuep(), Const);
+            if (constp->num().isAnyXZ()) continue;
+            const uint64_t bits = constp->toUQuad();
+            if (!seen.emplace(bits).second) continue;
+            puts("case " + cvtToStr(bits) + "ULL:\n");
+            emitToStringLiteral(out, V3Number::displayedPatternName(itemp));
+            puts("break;\n");
+        }
+        puts("default:\n");
+        if (!nameOnly) {
+            puts(out + " += ");
+            emitToStringNumber(valueDTypep, value, packedp);
+            puts(";\n");
+        }
+        puts("break;\n}\n");
+        return;
+    }
+    puts("const std::string " + enumValue + " = ");
+    emitToStringNumber(valueDTypep, value, packedp);
+    puts(";\n");
+    std::unordered_set<string> seenValues;
+    bool first = true;
+    for (const AstEnumItem* itemp = dtypep->itemsp(); itemp;
+         itemp = VN_AS(itemp->nextp(), EnumItem)) {
+        const AstConst* const constp = VN_CAST(itemp->valuep(), Const);
+        UASSERT_OBJ(constp, itemp, "Enum item without constant value");
+        if (constp->num().isAnyXZ()) continue;
+        const string itemValue
+            = constp->num().displayedPattern(dtypep->subDTypep(), m_toStringNumFormat);
+        if (!seenValues.emplace(itemValue).second) continue;
+        if (!first) puts(" else ");
+        puts("if (" + enumValue + " == ");
+        putsQuoted(itemValue);
+        puts(") {\n");
+        emitToStringLiteral(out, V3Number::displayedPatternName(itemp));
+        puts("}");
+        first = false;
+    }
+    if (!nameOnly) {
+        if (!first) puts(" else {\n");
+        puts(out + " += " + enumValue + ";\n");
+        if (!first) puts("}");
+    }
+    puts("\n");
+}
+
+void EmitCFunc::emitToStringValue(const AstNodeDType* dtypep, const string& value,
+                                  const string& out, const ToStringPacked* packedp,
+                                  bool dereferenceClass) {
+    if (const AstEnumDType* const enumDtp = VN_CAST(dtypep->skipRefToEnump(), EnumDType)) {
+        emitToStringEnum(enumDtp, dtypep, value, out, packedp);
+        return;
+    }
+    dtypep = dtypep->skipRefp();
+
+    if (VN_IS(dtypep, ClassRefDType)) {
+        puts(out + (dereferenceClass ? " += VL_TO_STRING_DEREF((" : " += VL_TO_STRING((") + value
+             + "));\n");
+        return;
+    }
+
+    if (VN_IS(dtypep, IfaceRefDType)) {
+        puts("if (" + value + ") " + out + " += (" + value + ")->vlNamep;\n");
+        puts("else " + out + " += \"null\";\n");
+        return;
+    }
+
+    const AstBasicDType* const basicp = dtypep->basicp();
+    if (basicp && basicp->isCHandle()) {
+        puts("if (!(" + value + ")) " + out + " += \"null\";\nelse " + out + " += ");
+        VL_RESTORER(m_toStringNumFormat);
+        m_toStringNumFormat = 'h';
+        emitToStringNumber(dtypep, value, packedp);
+        puts(";\n");
+        return;
+    }
+
+    puts(out + " += ");
+    emitToStringNumber(dtypep, value, packedp);
+    puts(";\n");
+}
+
 bool EmitCFunc::displayEmitHeader(AstNode* nodep) {
     bool isStmt = false;
     if (const AstFScanF* const dispp = VN_CAST(nodep, FScanF)) {
@@ -281,12 +408,65 @@ void EmitCFunc::displayNode(AstNode* nodep, AstSFormatF* fmtp,  // fmtp is nullp
     if (vformat.empty() && VN_IS(nodep, Display))  // not fscanf etc, as they need to return value
         return;  // NOP
 
+    std::map<const AstSFormatArg*, std::pair<string, string>> patternTemps;
+    int patternNum = 0;
+    for (AstNode* argp = exprsp; argp; argp = argp->nextp()) {
+        const AstSFormatArg* const fargp = VN_CAST(argp, SFormatArg);
+        if (!fargp || !fargp->formatAttr().isPattern()) continue;
+        const string suffix = cvtToStr(patternNum++);
+        const string valueTemp = "__VpatternValue"s + suffix;
+        const string stringTemp = "__VpatternString"s + suffix;
+        patternTemps.emplace(fargp, std::make_pair(valueTemp, stringTemp));
+    }
+    VL_RESTORER(m_toStringNum);
+    VL_RESTORER(m_toStringNumFormat);
+    if (!patternTemps.empty()) {
+        m_toStringNum = 0;
+        m_toStringNumFormat = fmtp->missingArgChar();
+        putns(nodep, "([&]() {\n");
+        if (exprFormat) {
+            puts("const auto __VpatternFormat = ");
+            iterateConst(exprsp);
+            puts(";\n");
+        }
+        for (AstNode* argp = exprsp; argp; argp = argp->nextp()) {
+            const AstSFormatArg* const fargp = VN_CAST(argp, SFormatArg);
+            if (!fargp || !fargp->formatAttr().isPattern()) continue;
+            const auto tempIt = patternTemps.find(fargp);
+            UASSERT_OBJ(tempIt != patternTemps.end(), fargp, "Missing pattern format temporary");
+            puts("const auto " + tempIt->second.first + " = ");
+            iterateConst(fargp->exprp());
+            puts(";\nstd::string " + tempIt->second.second + ";\n");
+            if (fargp->formatAttr().isEnum()) {
+                const AstEnumDType* const enumDtp
+                    = VN_AS(fargp->valueDTypep()->skipRefToEnump(), EnumDType);
+                emitToStringEnum(enumDtp, fargp->valueDTypep(), tempIt->second.first,
+                                 tempIt->second.second, nullptr, true);
+            } else if (fargp->formatAttr().isStringLiteral()) {
+                puts(tempIt->second.second + " = VL_TO_STRING(VL_CVT_PACK_STR_N");
+                puts(fargp->valueDTypep()->charIQWN());
+                puts("(");
+                if (fargp->valueDTypep()->isWide())
+                    puts(cvtToStr(fargp->valueDTypep()->widthWords()) + ", ");
+                puts(tempIt->second.first + "));\n");
+            } else {
+                emitToStringValue(fargp->valueDTypep(), tempIt->second.first,
+                                  tempIt->second.second, nullptr, false);
+            }
+        }
+        if (!VN_IS(nodep, Display) && !VN_IS(nodep, SFormat)) puts("return ");
+    }
+
     const bool isStmt = displayEmitHeader(nodep);
 
     if (exprFormat) {
         UASSERT_OBJ(exprsp, nodep, "Missing format expression");
-        iterateConst(exprsp);
-        emitDatap(exprsp);
+        if (patternTemps.empty()) {
+            iterateConst(exprsp);
+            emitDatap(exprsp);
+        } else {
+            puts("__VpatternFormat");
+        }
         exprsp = exprsp->nextp();
     } else {
         ofp()->putsQuoted(vformat);
@@ -342,8 +522,20 @@ void EmitCFunc::displayNode(AstNode* nodep, AstSFormatF* fmtp,  // fmtp is nullp
         AstNode* const subargp = fargp ? fargp->exprp() : argp;
         const VFormatAttr formatAttr = AstSFormatArg::formatAttrDefauled(fargp, subargp->dtypep());
         puts(", '"s + formatAttr.ascii() + '\'');
-        if (formatAttr.isSigned() || formatAttr.isUnsigned() || formatAttr.isEnum())
+        if (formatAttr.isPattern()) {
+            UASSERT_OBJ(fargp, argp, "Pattern format argument without metadata");
+            const auto tempIt = patternTemps.find(fargp);
+            UASSERT_OBJ(tempIt != patternTemps.end(), fargp, "Missing pattern format temporary");
+            puts("," + cvtToStr(fargp->valueDTypep()->widthMin()));
+            puts("," + tempIt->second.first);
+            if (fargp->valueDTypep()->isWide()) puts(".data()");
+            puts(",&(" + tempIt->second.second + ")");
+            ofp()->indentDec();
+            continue;
+        }
+        if (formatAttr.isSigned() || formatAttr.isUnsigned() || formatAttr.isEnum()) {
             puts("," + cvtToStr(subargp->widthMin()));
+        }
         const bool addrof = isScan || formatAttr.isString() || formatAttr.isComplex();
         puts(",");
         if (addrof) puts("&(");
@@ -360,8 +552,13 @@ void EmitCFunc::displayNode(AstNode* nodep, AstSFormatF* fmtp,  // fmtp is nullp
     // End
     if (isStmt) {
         puts(");\n");
+        if (!patternTemps.empty()) puts("}());\n");
     } else {
-        puts(") ");
+        if (patternTemps.empty()) {
+            puts(") ");
+        } else {
+            puts(");\n}()) ");
+        }
     }
 }
 

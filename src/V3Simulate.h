@@ -1305,7 +1305,9 @@ private:
                         break;
                     }
                     const string pformat = "%"s + width + pos[0];
-                    result += constp->num().displayed(nodep, pformat, formatAttr);
+                    result += fargp ? constp->num().displayedSFormat(fargp, pformat,
+                                                                     nodep->missingArgChar())
+                                    : constp->num().displayed(nodep, pformat, formatAttr);
                 } else {
                     switch (std::tolower(pos[0])) {
                     case '%': result += "%"; break;

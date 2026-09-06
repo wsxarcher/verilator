@@ -24,7 +24,7 @@ module t (
     W64A = 64'h1,
     W64B = 64'h0000_0001_0000_0001
   } wide64_e;
-  // Enums > 64 bits are beyond enum.name() support, so %p/%s format numerically
+  // Formatting preserves names even for enums wider than a machine word.
   typedef enum logic [95:0] {
     W96A = 96'h1,
     W96B = 96'hA_0000_0000_0000_0001
@@ -117,11 +117,11 @@ module t (
     `checks($sformatf("%s", e64), "8589934593");
     n64 = 64'h0000_0000_0000_0001;
     `checks($sformatf("%0p", n64), "'h1");
-    // > 64-bit enums print numerically for %p (no name table support)
+    // Wide enum names do not affect explicitly numeric formats.
     e96 = W96B;  // 10 * 2**64 + 1
     if (empty_no_opt != "") e96 = W96A;  // Defeat constant folding
-    `checks($sformatf("%p", e96), "184467440737095516161");
-    `checks($sformatf("%0p", e96), "'ha0000000000000001");
+    `checks($sformatf("%p", e96), "W96B");
+    `checks($sformatf("%0p", e96), "W96B");
     `checks($sformatf("%0d", e96), "184467440737095516161");
     `checks($sformatf("%0h", e96), "a0000000000000001");
     // Exercise display/write-family formatting path in addition to $sformatf checks.
@@ -176,11 +176,13 @@ module t (
     `checks($sformatf(fmt, e, 4'hA, e), "3 a 3");
     fmt = {"%", "p", empty_no_opt};
     `checks($sformatf(fmt, e64), "8589934593");
-    // > 64-bit enums use the non-ENUM format in runtime formats too
+    // Runtime formats retain wide enum names as well.
     fmt = {"%", "p", empty_no_opt};
-    `checks($sformatf(fmt, e96), "184467440737095516161");
+    `checks($sformatf(fmt, e96), "W96B");
+    `checks($sformatf(fmt, W96B), "W96B");
     fmt = {"%0d", empty_no_opt};
     `checks($sformatf(fmt, e96), "184467440737095516161");
+    `checks($sformatf(fmt, W96B), "184467440737095516161");
     bitstream_value = 30;
     `checks($sformatf("%0s%0t", "", bitstream_value), "30");
     bitstream_value = '0;
