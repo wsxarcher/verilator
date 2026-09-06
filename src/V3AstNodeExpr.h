@@ -6188,9 +6188,7 @@ public:
         return valueDTypep() == sp->valueDTypep() && numFormat() == sp->numFormat();
     }
     string emitVerilog() override { return "%l"; }
-    string emitC() override {
-        return isWide() ? "VL_TO_STRING_W(%nw, %li)" : "VL_TO_STRING_DEREF(%li)";
-    }
+    string emitC() override { V3ERROR_NA_RETURN(""); }
     bool cleanOut() const override { return true; }
     bool cleanLhs() const override { return true; }
     bool sizeMattersLhs() const override { return false; }

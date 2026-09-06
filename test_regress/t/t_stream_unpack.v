@@ -45,10 +45,10 @@ module t;
     automatic logic [127:0] p[];
 
     { >> bit {arr}} = bit6;
-    `checkp(arr, "'{'h1, 'h1, 'h1, 'h0, 'h0, 'h0}");
+    `checkp(arr, "'{1, 1, 1, 0, 0, 0}");
 
     arr = { >> bit {bit6}};
-    `checkp(arr, "'{'h1, 'h1, 'h1, 'h0, 'h0, 'h0}");
+    `checkp(arr, "'{1, 1, 1, 0, 0, 0}");
 
     ans = { >> bit {arr} };
     `checkh(ans, bit6);
@@ -66,10 +66,10 @@ module t;
     `checkh(ans_enum, bit6);
 
     { << bit {arr}} = bit6;
-    `checkp(arr, "'{'h0, 'h0, 'h0, 'h1, 'h1, 'h1}");
+    `checkp(arr, "'{0, 0, 0, 1, 1, 1}");
 
     arr = { << bit {bit6}};
-    `checkp(arr, "'{'h0, 'h0, 'h0, 'h1, 'h1, 'h1}");
+    `checkp(arr, "'{0, 0, 0, 1, 1, 1}");
 
     ans = { << bit {arr} };
     `checkh(ans, bit6);
@@ -87,10 +87,10 @@ module t;
     `checkh(ans_enum, bit6);
 
     { >> bit[1:0] {arr2}} = bit6;
-    `checkp(arr2, "'{'h3, 'h2, 'h0}");
+    `checkp(arr2, "'{3, 2, 0}");
 
     arr2 = { >> bit[1:0] {bit6}};
-    `checkp(arr2, "'{'h3, 'h2, 'h0}");
+    `checkp(arr2, "'{3, 2, 0}");
 
     ans = { >> bit[1:0] {arr2} };
     `checkh(ans, bit6);
@@ -108,7 +108,7 @@ module t;
     `checkh(ans_enum, bit6);
 
     { << bit[1:0] {arr2}} = bit6;
-    `checkp(arr2, "'{'h0, 'h2, 'h3}");
+    `checkp(arr2, "'{0, 2, 3}");
 
     ans = { << bit[1:0] {arr2} };
     `checkh(ans, bit6);
@@ -126,10 +126,10 @@ module t;
     `checkh(ans_enum, bit6);
 
     { >> bit [5:0] {arr6} } = bit6;
-    `checkp(arr6, "'{'h38}");
+    `checkp(arr6, "'{56}");
 
     arr6 = { >> bit [5:0] {bit6}};
-    `checkp(arr6, "'{'h38}");
+    `checkp(arr6, "'{56}");
 
     ans = { >> bit[5:0] {arr6} };
     `checkh(ans, bit6);
@@ -147,10 +147,10 @@ module t;
     `checkh(ans_enum, bit6);
 
     { << bit [5:0] {arr6} } = bit6;
-    `checkp(arr6, "'{'h38}");
+    `checkp(arr6, "'{56}");
 
     arr6 = { << bit [5:0] {bit6}};
-    `checkp(arr6, "'{'h38}");
+    `checkp(arr6, "'{56}");
 
     ans = { << bit[5:0] {arr6} };
     `checkh(ans, bit6);
@@ -213,15 +213,15 @@ module t;
     `checkh(d, 16'b0100110110001100);
 
     { >> {e, f}} = d;
-    `checkp(e, "'{'h4, 'hd}");
-    `checkp(f, "'{'h1, 'h0, 'h0, 'h0, 'h1, 'h1, 'h0, 'h0}");
+    `checkp(e, "'{4, 13}");
+    `checkp(f, "'{1, 0, 0, 0, 1, 1, 0, 0}");
 
     d = { << 4 {a, b, c}};
     `checkh(d, 16'b1100100011010100);
 
     { << 2 {e, f}} = d;
-    `checkp(e, "'{'h1, 'h7}");
-    `checkp(f, "'{'h0, 'h0, 'h1, 'h0, 'h0, 'h0, 'h1, 'h1}");
+    `checkp(e, "'{1, 7}");
+    `checkp(f, "'{0, 0, 1, 0, 0, 0, 1, 1}");
 
     g = { << 8 {16'hABCD}};
     `checkh(g, 16'hCDAB);

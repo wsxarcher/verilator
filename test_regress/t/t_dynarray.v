@@ -57,7 +57,7 @@ module t (
       `checkh(a[0], 10);
       `checkh(a[1], 11);
       `checkh(a[2], 12);
-      `checkp(a, "'{'ha, 'hb, 'hc}");
+      `checkp(a, "'{10, 11, 12}");
       a.delete;
       `checkh(a.size, 0);
 

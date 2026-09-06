@@ -418,34 +418,23 @@ private:
         }
     }
 
-    string toStringRecurse(AstNodeExpr* nodep, const AstNodeDType* valueDTypep = nullptr,
-                           char numFormat = 'd') {
+    string toStringRecurse(AstNodeExpr* nodep, const AstNodeDType* dtypep, char numFormat) {
         // Return string representation, or clearOptimizable
         const AstNodeExpr* const valuep = fetchValue(nodep);
         if (const AstConst* const avaluep = VN_CAST(valuep, Const)) {
-            if (valueDTypep) return avaluep->num().displayedPattern(valueDTypep, numFormat);
-            return "'h"s + avaluep->num().displayed(nodep, "%0x");
+            return avaluep->num().displayedPattern(dtypep, numFormat);
         }
         if (const AstInitArray* const avaluep = VN_CAST(valuep, InitArray)) {
+            const AstUnpackArrayDType* const arrayp = VN_AS(dtypep->skipRefp(), UnpackArrayDType);
             string result = "'{";
             string comma;
-            if (VN_IS(nodep->dtypep(), AssocArrayDType)) {
-                if (avaluep->defaultp()) {
-                    result += comma + "default:" + toStringRecurse(avaluep->defaultp());
-                    comma = ", ";
-                }
-                const auto& mapr = avaluep->map();
-                for (const auto& itr : mapr) {
-                    result += comma + cvtToStr(itr.first) + ":"
-                              + toStringRecurse(itr.second->valuep());
-                    comma = ", ";
-                }
-            } else if (const AstUnpackArrayDType* const dtypep
-                       = VN_CAST(nodep->dtypep(), UnpackArrayDType)) {
-                for (int n = 0; n < dtypep->elementsConst(); ++n) {
-                    result += comma + toStringRecurse(avaluep->getIndexDefaultedValuep(n));
-                    comma = ", ";
-                }
+            for (int n = 0; n < arrayp->elementsConst(); ++n) {
+                const int index
+                    = arrayp->declRange().ascending() ? n : arrayp->elementsConst() - 1 - n;
+                result += comma
+                          + toStringRecurse(avaluep->getIndexDefaultedValuep(index),
+                                            arrayp->subDTypep(), numFormat);
+                comma = ", ";
             }
             result += "}";
             return result;
@@ -1355,9 +1344,8 @@ private:
         checkNodeInfo(nodep);
         iterateChildrenConst(nodep);
         if (m_checkOnly || !optimizable()) return;
-        const AstNodeDType* const dtypep = nodep->valueDTypep()->skipRefp();
-        const std::string result = toStringRecurse(
-            nodep->lhsp(), dtypep->isIntegralOrPacked() ? dtypep : nullptr, nodep->numFormat());
+        const std::string result
+            = toStringRecurse(nodep->lhsp(), nodep->valueDTypep(), nodep->numFormat());
         if (!optimizable()) return;
         AstConst* const resultConstp = new AstConst{nodep->fileline(), AstConst::String{}, result};
         setValue(nodep, resultConstp);

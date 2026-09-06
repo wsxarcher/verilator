@@ -269,6 +269,13 @@ public:
                           bool nameOnly = false);
     void emitToStringStruct(const AstNodeUOrStructDType* dtypep, const string& value,
                             const string& out, const ToStringPacked* packedp);
+    void emitToStringAssoc(const AstAssocArrayDType* dtypep, const string& value,
+                           const string& out);
+    void emitToStringWildcard(const AstWildcardArrayDType* dtypep, const string& value,
+                              const string& out);
+    void emitToStringUnpacked(const AstUnpackArrayDType* dtypep, const string& value,
+                              const string& out);
+    void emitToStringQueue(const AstNodeDType* dtypep, const string& value, const string& out);
     void emitToStringValue(const AstNodeDType* dtypep, const string& value, const string& out,
                            const ToStringPacked* packedp, bool dereferenceClass);
     void emitConstant(AstConst* nodep);

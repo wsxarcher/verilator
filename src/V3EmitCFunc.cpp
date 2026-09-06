@@ -310,6 +310,70 @@ void EmitCFunc::emitToStringStruct(const AstNodeUOrStructDType* dtypep, const st
     emitToStringLiteral(out, "}");
 }
 
+void EmitCFunc::emitToStringAssoc(const AstAssocArrayDType* dtypep, const string& value,
+                                  const string& out) {
+    const string suffix = cvtToStr(m_toStringNum++);
+    const string item = "__Vitem"s + suffix;
+    const string comma = "__Vcomma"s + suffix;
+    emitToStringLiteral(out, "'{");
+    puts("std::string " + comma + ";\n");
+    puts("for (const auto& " + item + " : (" + value + ")) {\n");
+    puts(out + " += " + comma + ";\n");
+    puts(comma + " = \", \";\n");
+    emitToStringValue(dtypep->keyDTypep(), item + ".first", out, nullptr, false);
+    emitToStringLiteral(out, ":");
+    emitToStringValue(dtypep->subDTypep(), item + ".second", out, nullptr, false);
+    puts("}\n");
+    emitToStringLiteral(out, "}");
+}
+
+void EmitCFunc::emitToStringWildcard(const AstWildcardArrayDType* dtypep, const string& value,
+                                     const string& out) {
+    const string suffix = cvtToStr(m_toStringNum++);
+    const string item = "__Vitem"s + suffix;
+    const string comma = "__Vcomma"s + suffix;
+    emitToStringLiteral(out, "'{");
+    puts("std::string " + comma + ";\n");
+    puts("for (const auto& " + item + " : (" + value + ")) {\n");
+    puts(out + " += " + comma + ";\n");
+    puts(comma + " = \", \";\n");
+    puts(out + " += VL_TO_STRING(" + item + ".first);\n");
+    emitToStringLiteral(out, ":");
+    emitToStringValue(dtypep->subDTypep(), item + ".second", out, nullptr, false);
+    puts("}\n");
+    emitToStringLiteral(out, "}");
+}
+
+void EmitCFunc::emitToStringUnpacked(const AstUnpackArrayDType* dtypep, const string& value,
+                                     const string& out) {
+    const string suffix = cvtToStr(m_toStringNum++);
+    const string index = "__Vi"s + suffix;
+    emitToStringLiteral(out, "'{");
+    puts("for (size_t " + index + " = 0; " + index + " < (" + value + ").size(); ++" + index
+         + ") {\n");
+    puts("if (" + index + ") " + out + " += \", \";\n");
+    const string offset = dtypep->declRange().ascending()
+                              ? index
+                              : cvtToStr(dtypep->elementsConst() - 1) + " - " + index;
+    emitToStringValue(dtypep->subDTypep(), "(" + value + ")[" + offset + "]", out, nullptr, false);
+    puts("}\n");
+    emitToStringLiteral(out, "}");
+}
+
+void EmitCFunc::emitToStringQueue(const AstNodeDType* dtypep, const string& value,
+                                  const string& out) {
+    const string suffix = cvtToStr(m_toStringNum++);
+    const string index = "__Vi"s + suffix;
+    emitToStringLiteral(out, "'{");
+    puts("for (int " + index + " = 0; " + index + " < (" + value + ").size(); ++" + index
+         + ") {\n");
+    puts("if (" + index + ") " + out + " += \", \";\n");
+    emitToStringValue(dtypep->subDTypep(), "(" + value + ").at(" + index + ")", out, nullptr,
+                      false);
+    puts("}\n");
+    emitToStringLiteral(out, "}");
+}
+
 void EmitCFunc::emitToStringValue(const AstNodeDType* dtypep, const string& value,
                                   const string& out, const ToStringPacked* packedp,
                                   bool dereferenceClass) {
@@ -321,6 +385,24 @@ void EmitCFunc::emitToStringValue(const AstNodeDType* dtypep, const string& valu
 
     if (const AstNodeUOrStructDType* const structDtp = VN_CAST(dtypep, NodeUOrStructDType)) {
         emitToStringStruct(structDtp, value, out, packedp);
+        return;
+    }
+    if (const AstAssocArrayDType* const assocDtp = VN_CAST(dtypep, AssocArrayDType)) {
+        emitToStringAssoc(assocDtp, value, out);
+        return;
+    }
+    if (const AstWildcardArrayDType* const wildcardDtp = VN_CAST(dtypep, WildcardArrayDType)) {
+        emitToStringWildcard(wildcardDtp, value, out);
+        return;
+    }
+    if (const AstUnpackArrayDType* const arrayDtp = VN_CAST(dtypep, UnpackArrayDType)) {
+        emitToStringUnpacked(arrayDtp, value, out);
+        return;
+    }
+    const AstNodeDType* const queueDtp
+        = VN_IS(dtypep, DynArrayDType) ? dtypep : VN_CAST(dtypep, QueueDType);
+    if (queueDtp) {
+        emitToStringQueue(queueDtp, value, out);
         return;
     }
 
@@ -352,17 +434,13 @@ void EmitCFunc::emitToStringValue(const AstNodeDType* dtypep, const string& valu
 }
 
 void EmitCFunc::visit(AstToStringN* nodep) {
-    if (!nodep->valueDTypep()->skipRefp()->isIntegralOrPacked()) {
-        AstNodeUniop* const unopp = nodep;
-        visit(unopp);
-        return;
-    }
     VL_RESTORER(m_toStringNum);
     VL_RESTORER(m_toStringNumFormat);
     m_toStringNum = 0;
     m_toStringNumFormat = nodep->numFormat();
     putns(nodep, "([&]() {\n");
     puts("const auto& __Vvalue = ");
+    if (VN_IS(nodep->lhsp(), InitArray)) puts(nodep->valueDTypep()->cType("", false, false));
     iterateAndNextConstNull(nodep->lhsp());
     puts(";\nstd::string __Vout;\n");
     emitToStringValue(nodep->valueDTypep(), "__Vvalue", "__Vout", nullptr, true);

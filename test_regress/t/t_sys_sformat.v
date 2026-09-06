@@ -143,7 +143,7 @@ module t (
     structs[0].dummy = 0;
 
     s = $sformatf("%p", structs[0]);
-    `checks(s, "'{dummy:'h0}");
+    `checks(s, "'{dummy:0}");
 
     $write("*-* All Finished *-*\n");
     $finish;

@@ -30,7 +30,7 @@ module t;
   int u[2];
   parameter int U[2] = '{5, 6};
   parameter string US = $sformatf(">%p<", U);
-  initial `checks(US, ">'{'h5, 'h6}<");
+  initial `checks(US, ">'{5, 6}<");
 
 `ifndef VERILATOR
   // Generally not supported by others
@@ -67,9 +67,9 @@ module t;
     u[0] = `no_optimize(5);
     u[1] = `no_optimize(6);
     s = $sformatf(">%p<", u);
-    `checks(s, ">'{'h5, 'h6}<");
+    `checks(s, ">'{5, 6}<");
 
-    `checks(US, ">'{'h5, 'h6}<");
+    `checks(US, ">'{5, 6}<");
     $write("*-* All Finished *-*\n");
     $finish;
   end

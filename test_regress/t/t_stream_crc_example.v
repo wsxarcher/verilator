@@ -53,14 +53,14 @@ module t (  /*AUTOARG*/
     po = {<<8{bit_q_t'({<<{bits}})}};
 
     s  = $sformatf("p=%p", p);
-    `checks(s, "p='{'h84, 'haa}");
+    `checks(s, "p='{132, 170}");
 
     s = $sformatf("bits=%p", bits);
     `checks(s,
-            "bits='{'h0, 'h0, 'h0, 'h1, 'h0, 'h0, 'h0, 'h0, 'h1, 'h0, 'h1, 'h0, 'h1, 'h0, 'h1, 'h0, 'h1}");
+            "bits='{0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1}");
 
     s = $sformatf("po=%p", po);
-    `checks(s, "po='{'h8, 'h55, 'h80}");
+    `checks(s, "po='{8, 85, 128}");
   end
 
   always_ff @(posedge clk) begin

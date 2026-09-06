@@ -6666,6 +6666,13 @@ class WidthVisitor final : public VNVisitor {
         return false;
     }
 
+    static bool isFormatPatternArg(const AstNodeDType* dtypep) {
+        dtypep = dtypep->skipRefp();
+        if (VN_IS(dtypep, IfaceRefDType) || isFormatPackedAggregate(dtypep)) return true;
+        const AstBasicDType* const basicp = dtypep->basicp();
+        return basicp && (basicp->isCHandle() || basicp->isEvent());
+    }
+
     static bool isFormatZeroWidth(const string& fmtMods) {
         bool widthSet = false;
         size_t width = 0;
@@ -6752,33 +6759,22 @@ class WidthVisitor final : public VNVisitor {
             } else if (nodep->exprFormat() && enumDtp) {
                 formatAttr = enumDtp->isSigned() ? VFormatAttr::ENUM_SIGNED : VFormatAttr::ENUM;
             } else if (isFormatNonNumericArg(dtypep)) {
-                const AstNodeExpr* formatTypeArgp = argp;
-                if (const AstCMethodHard* const cmethp = VN_CAST(formatTypeArgp, CMethodHard)) {
-                    if (cmethp->method() == VCMethod::ARRAY_AT) formatTypeArgp = cmethp->fromp();
-                } else if (const AstArraySel* const arselp = VN_CAST(formatTypeArgp, ArraySel)) {
-                    formatTypeArgp = arselp->fromp();
-                }
-                if (const AstVarRef* const varRefp = VN_CAST(formatTypeArgp, VarRef)) {
-                    if (AstClassRefDType* const classRefp
-                        = VN_CAST(varRefp->dtypep(), ClassRefDType)) {
-                        if (classRefp->classp()) {
-                            classRefp->classp()->markPrintedFrom();
+                if (const AstClassRefDType* const classRefp = VN_CAST(dtypep, ClassRefDType)) {
+                    classRefp->classp()->markPrintedFrom();
+                    v3Global.hasPrintedObjects(true);
+                } else {
+                    for (AstNodeDType* nodeDtypep = argp->dtypep()->skipRefp(); nodeDtypep;
+                         nodeDtypep = nodeDtypep->subDTypep() ? nodeDtypep->subDTypep()->skipRefp()
+                                                              : nullptr) {
+                        if (AstNodeUOrStructDType* const structp
+                            = VN_CAST(nodeDtypep, NodeUOrStructDType)) {
+                            structp->setEmitToString();
                             v3Global.hasPrintedObjects(true);
-                        }
-                    } else {
-                        AstNodeDType* nodeDtypep = varRefp->dtypep();
-                        while (nodeDtypep && nodeDtypep->subDTypep()
-                               && nodeDtypep->subDTypep()->skipRefp()) {
-                            nodeDtypep = nodeDtypep->subDTypep()->skipRefp();
-                            if (AstNodeUOrStructDType* const uOrStructDTypep
-                                = VN_CAST(nodeDtypep, NodeUOrStructDType)) {
-                                uOrStructDTypep->setEmitToString();
-                                v3Global.hasPrintedObjects(true);
-                            }
                         }
                     }
                 }
-                AstNodeExpr* const newp = new AstToStringN{argp->fileline(), argp};
+                AstNodeExpr* const newp
+                    = new AstToStringN{argp->fileline(), argp, nodep->missingArgChar()};
                 formatAttr = VFormatAttr::COMPLEX;
                 argp = newp;
             }
@@ -8789,8 +8785,9 @@ class WidthVisitor final : public VNVisitor {
                 case 's':
                     // As with enum.name(): valid values print the mnemonic, else numeric
                     if (subargp) {
-                        if (ch == 'p' && !isFormatZeroWidth(fmtMods)
-                            && isFormatPackedAggregate(dtypep)) {
+                        if (ch == 'p'
+                            && !(isFormatZeroWidth(fmtMods) && isFormatPackedAggregate(dtypep))
+                            && isFormatPatternArg(dtypep)) {
                             wrapFormatPattern(subargp, nodep->missingArgChar());
                         } else if (AstEnumDType* const enumDtp = formatEnumDType(subargp)) {
                             wrapFormatEnum(subargp, enumDtp);

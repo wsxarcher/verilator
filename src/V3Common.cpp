@@ -90,6 +90,7 @@ static void makeVlToString(AstNodeUOrStructDType* nodep) {
         stmt += V3Common::makeToStringCall(itemp->dtypep(), "obj."s + itemp->nameProtect());
         stmt += ";";
         funcp->addStmtsp(new AstCStmt{nodep->fileline(), stmt});
+        if (VN_IS(nodep, UnionDType)) break;
     }
     funcp->addStmtsp(new AstCStmt{nodep->fileline(), "out += \"}\";"});
 
