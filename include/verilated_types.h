@@ -231,7 +231,7 @@ extern std::string VL_TO_STRING(SData lhs);
 extern std::string VL_TO_STRING(IData lhs);
 extern std::string VL_TO_STRING(QData lhs);
 extern std::string VL_TO_STRING(double lhs);
-extern std::string VL_TO_STRING(const std::string& obj);
+extern std::string VL_TO_STRING(const std::string& obj) VL_PURE;
 extern std::string VL_TO_STRING_PACKED(int obits, int lsb, QData obj, bool isSigned,
                                        char numFormat);
 extern std::string VL_TO_STRING_PACKED_W(int obits, int lbits, int lsb, WDataInP obj,

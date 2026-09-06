@@ -2508,7 +2508,7 @@ std::string VL_TO_STRING(QData lhs) {
 std::string VL_TO_STRING(double lhs) {
     return VL_SFORMATF_N_NX("%g", 1, VL_VFORMATATTR_DOUBLE, lhs);
 }
-std::string VL_TO_STRING(const std::string& obj) {
+std::string VL_TO_STRING(const std::string& obj) VL_PURE {
     std::string out{"\""};
     out.reserve(obj.size() + 2);
     for (const unsigned char ch : obj) {
