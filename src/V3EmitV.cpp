@@ -370,13 +370,7 @@ class EmitVBaseVisitorConst VL_NOT_FINAL : public VNVisitorConst {
         }
         puts(";\n");
     }
-    void visit(AstCoverpointRef* nodep) override {
-        if (nodep->exprp()) {
-            iterateConst(nodep->exprp());
-        } else {
-            putfs(nodep, nodep->name());
-        }
-    }
+    void visit(AstCoverpointRef* nodep) override { putfs(nodep, nodep->name()); }
     void visit(AstCoverCross* nodep) override {
         putfs(nodep, nodep->name() + ": cross ");
         for (AstNode* itemp = nodep->itemsp(); itemp; itemp = itemp->nextp()) {

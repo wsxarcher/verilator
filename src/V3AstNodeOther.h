@@ -1112,13 +1112,8 @@ public:
         this->pointp(pointp);
     }
     ASTGEN_MEMBERS_AstCoverBinsof;
-    void dump(std::ostream& str) const override;
-    void dumpJson(std::ostream& str) const override;
     string name() const override VL_MT_STABLE { return m_name; }
     void name(const string& name) override { m_name = name; }
-    bool sameNode(const AstNode* samep) const override {
-        return m_name == VN_AS(samep, CoverBinsof)->m_name;
-    }
 };
 class AstCoverCrossBin final : public AstNode {
     // A named cross bin and its selection expression
@@ -1134,13 +1129,7 @@ public:
         this->iffp(iffp);
     }
     ASTGEN_MEMBERS_AstCoverCrossBin;
-    void dump(std::ostream& str) const override;
-    void dumpJson(std::ostream& str) const override;
     string name() const override VL_MT_STABLE { return m_name; }
-    bool sameNode(const AstNode* samep) const override {
-        return m_name == VN_AS(samep, CoverCrossBin)->m_name;
-    }
-    static void selfTest();
 };
 class AstCoverOption final : public AstNode {
     // Coverage-option assignment

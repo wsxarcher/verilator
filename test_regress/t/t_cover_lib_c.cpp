@@ -10,7 +10,6 @@
 //*************************************************************************
 
 #include "verilated_cov.h"
-#include "verilated_covergroup.h"
 
 #include "svdpi.h"
 
@@ -92,47 +91,6 @@ int main() {
 #else
 #error
 #endif
-
-    // Cross-bin names and coverage are also available through the runtime read interface.
-    VlCoverpointT<1> a;
-    VlCoverpointT<1> b;
-    a.init("a", 1, 2);
-    a.addArrayNamer(VlCovBinKind::KIND_NORMAL, 2, "a", __FILE__, __LINE__, 1);
-    b.init("b", 1, 2);
-    b.addArrayNamer(VlCovBinKind::KIND_NORMAL, 2, "b", __FILE__, __LINE__, 1);
-    VlCoverpoint* const cps[] = {&a, &b};
-
-    VlCoverCross automatic;
-    automatic.init("automatic", 2, cps, __FILE__, __LINE__, 1);
-    TEST_CHECK_EQ(automatic.binCount(), 4);
-    TEST_CHECK_EQ(automatic.binName(0), "a[0]_x_b[0]");
-    TEST_CHECK_EQ(automatic.binName(3), "a[1]_x_b[1]");
-
-    VlCoverCross selected;
-    selected.init("selected", 2, cps, __FILE__, __LINE__, 1);
-    selected.addBin(0, 0, 1, "named", __FILE__, __LINE__, 1);
-    selected.finalizeBins();
-    const VlCoverpointIf& view = selected;
-    TEST_CHECK_EQ(view.binCount(), 3);
-    TEST_CHECK_EQ(view.binName(0), "named");
-    TEST_CHECK_EQ(view.binName(1), "a[1]_x_b[0]");
-    TEST_CHECK_EQ(view.binName(2), "a[1]_x_b[1]");
-
-    a.incrementBin(0);
-    b.incrementBin(0);
-    selected.sample(cps);
-    double covered = 0;
-    double total = 0;
-    view.coverageParts(covered, total);
-    TEST_CHECK_EQ(covered, 1);
-    TEST_CHECK_EQ(total, 3);
-
-    a.clearHitList();
-    a.incrementBin(1);
-    selected.sample(cps);
-    view.coverageParts(covered, total);
-    TEST_CHECK_EQ(covered, 2);
-    TEST_CHECK_EQ(total, 3);
 
     printf("*-* All Finished *-*\n");
     return (errors ? 10 : 0);

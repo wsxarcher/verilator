@@ -31,6 +31,7 @@
 #include "V3MemberMap.h"
 
 #include <set>
+#include <unordered_map>
 #include <vector>
 
 VL_DEFINE_DEBUG_FUNCTIONS;
@@ -163,7 +164,7 @@ class FunctionalCoverageVisitor final : public VNVisitor {
     std::map<std::string, AstVar*> m_cpVarMap;  // Coverpoint name -> its VlCoverpoint member
     struct CoverpointBins final {
         uint32_t total = 0;  // Number of Normal bins
-        std::map<std::string, std::pair<uint32_t, uint32_t>>
+        std::unordered_map<std::string, std::pair<uint32_t, uint32_t>>
             spans;  // Declared bin name -> first Normal index and number of bins
     };
     std::map<AstVar*, CoverpointBins> m_cpBins;  // Runtime coverpoint -> binsof index ranges
@@ -1328,17 +1329,21 @@ class FunctionalCoverageVisitor final : public VNVisitor {
         cs->add("{ ");
         if (!bins.empty()) {
             cs->add("const bool __Vcx_iffs[] = {");
-            for (size_t i = 0; i < bins.size(); ++i) {
-                if (i) cs->add(", ");
-                cs->add(bins[i]->iffp() ? bins[i]->iffp()->cloneTree(false)
-                                        : new AstConst{fl, AstConst::BitTrue{}});
+            bool first = true;
+            for (const AstCoverCrossBin* const binp : bins) {
+                if (!first) cs->add(", ");
+                first = false;
+                cs->add(binp->iffp() ? binp->iffp()->cloneTree(false)
+                                     : new AstConst{fl, AstConst::BitTrue{}});
             }
             cs->add("}; ");
         }
         cs->add("VlCoverpoint* __Vcx_cps[] = {");
-        for (size_t d = 0; d < cpVars.size(); ++d) {
-            cs->add(d == 0 ? "&" : ", &");
-            cs->add(memberRef(fl, cpVars[d]));
+        bool first = true;
+        for (AstVar* const cpVarp : cpVars) {
+            cs->add(first ? "&" : ", &");
+            first = false;
+            cs->add(memberRef(fl, cpVarp));
         }
         cs->add("}; ");
         cs->add(memberRef(fl, cxVarp));
@@ -1383,7 +1388,9 @@ class FunctionalCoverageVisitor final : public VNVisitor {
                 first = binIt->second.first;
                 count = binIt->second.second;
             }
-            if (!count) continue;  // Non-normal or empty bins select no cross products.
+            // IEEE 1800-2012 19.6 excludes default, ignored and illegal coverpoint bins
+            // from cross products. An empty selection is valid, not an unsupported construct.
+            if (!count) continue;
             FileLine* const fl = binp->fileline();
             const bool prot = v3Global.opt.protectIds();
             const std::string name = V3OutFormatter::quoteNameControls(

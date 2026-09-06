@@ -134,11 +134,11 @@ void VlCoverCross::init(const char* hier, uint32_t dims, VlCoverpoint* const* cp
     m_flatCounts.assign(m_numAutoBins, 0);
 }
 
-void VlCoverCross::addBin(uint32_t dim, uint32_t first, uint32_t bins, const char* name,
-                          const char* file, int line, int col) {
+void VlCoverCross::addBin(uint32_t dim, uint32_t first, uint32_t bins, const char* namep,
+                          const char* filep, int line, int col) {
     if (!m_numAutoBins) return;  // An empty product creates no cross bin.
     if (m_bins.empty()) m_autoExcluded.assign(m_numAutoBins, false);
-    m_bins.emplace_back(dim, first, bins, name, file, line, col);
+    m_bins.emplace_back(dim, first, bins, namep, filep, line, col);
     // Visit only selected tuples. Multiple explicit bins may select the same tuple.
     const uint64_t stride = m_stride[dim];
     const uint64_t period = stride * m_cpBinCounts[dim];
@@ -175,9 +175,8 @@ void VlCoverCross::sample(VlCoverpoint* const* cps, const bool* binIffs) {
     for (uint32_t d = 0; d < m_dims; ++d) {
         if (cps[d]->hitCount() == 0) return;
     }
-    for (uint32_t b = 0; b < m_bins.size(); ++b) {
-        if (binIffs && !binIffs[b]) continue;
-        Bin& bin = m_bins[b];
+    for (Bin& bin : m_bins) {
+        if (binIffs && !*binIffs++) continue;
         const VlCoverpoint* const cpp = cps[bin.dim];
         for (uint32_t hit = 0; hit < cpp->hitCount(); ++hit) {
             const uint32_t idx = cpp->hitList()[hit];
@@ -191,7 +190,7 @@ void VlCoverCross::sample(VlCoverpoint* const* cps, const bool* binIffs) {
 }
 
 std::string VlCoverCross::binName(uint32_t i) const {
-    if (i < m_bins.size()) return m_bins[i].name;
+    if (i < m_bins.size()) return m_bins[i].namep;
     return autoBinName(autoIndex(i - static_cast<uint32_t>(m_bins.size())));
 }
 
@@ -208,21 +207,23 @@ std::string VlCoverCross::autoBinName(uint32_t flat) const {
 
 #if VM_COVERAGE
 void VlCoverCross::registerBins(VerilatedCovContext* covcontextp, const char* page) {
-    for (Bin& bin : m_bins) {
-        const std::string full = m_hier + "." + bin.name;
-        const std::string lineStr = std::to_string(bin.line);
-        const std::string colStr = std::to_string(bin.col);
-        VL_COVER_INSERT(covcontextp, full.c_str(), &bin.count, "page", page, "filename", bin.file,
-                        "lineno", lineStr.c_str(), "column", colStr.c_str(), "bin", bin.name,
-                        "cross", "1");
-    }
-    // Register retained automatic bins, including those with zero hits.
     const std::string lineStr = std::to_string(m_line);
     const std::string colStr = std::to_string(m_col);
-    const uint32_t autoCount = binCount() - static_cast<uint32_t>(m_bins.size());
-    for (uint32_t i = 0; i < autoCount; ++i) {
-        const uint32_t flat = autoIndex(i);
-        const std::string bin = autoBinName(flat);  // "b1_x_b2_x_..."
+    const uint32_t explicitCount = static_cast<uint32_t>(m_bins.size());
+    // Use the same indexed names for registration and the runtime read interface.
+    for (uint32_t i = 0; i < binCount(); ++i) {
+        const std::string bin = binName(i);
+        const std::string full = m_hier + "." + bin;
+        if (i < explicitCount) {
+            Bin& userBin = m_bins[i];
+            const std::string binLineStr = std::to_string(userBin.line);
+            const std::string binColStr = std::to_string(userBin.col);
+            VL_COVER_INSERT(covcontextp, full.c_str(), &userBin.count, "page", page, "filename",
+                            userBin.filep, "lineno", binLineStr.c_str(), "column",
+                            binColStr.c_str(), "bin", bin.c_str(), "cross", "1");
+            continue;
+        }
+        const uint32_t flat = autoIndex(i - explicitCount);
         // cross_bins metadata: the same components joined by ',' (not read by the report)
         std::string crossBins;
         for (uint32_t d = 0; d < m_dims; ++d) {
@@ -230,7 +231,6 @@ void VlCoverCross::registerBins(VerilatedCovContext* covcontextp, const char* pa
             if (d > 0) crossBins += ",";
             crossBins += m_cps[d]->normalBinName(crossIdx);
         }
-        const std::string full = m_hier + "." + bin;
         VL_COVER_INSERT(covcontextp, full.c_str(), &m_flatCounts[flat], "page", page, "filename",
                         m_file, "lineno", lineStr.c_str(), "column", colStr.c_str(), "bin",
                         bin.c_str(), "cross", "1", "cross_bins", crossBins.c_str());

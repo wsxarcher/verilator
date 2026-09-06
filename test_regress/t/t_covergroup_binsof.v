@@ -34,7 +34,10 @@ module t (
       bins lhs = binsof (cp_a.low);
       bins rhs = binsof (cp_b.low);
     }
-    guarded: cross cp_a, cp_b iff (enabled) {bins selected = binsof (cp_a.low) iff (a == 0);}
+    guarded: cross cp_a, cp_b iff (enabled) {
+      bins selected = binsof (cp_a.low) iff (a == 0);
+      bins selected_one = binsof (cp_a.low) iff (a == 1);
+    }
     // Non-normal coverpoint bins do not contribute any cross products.
     empty_selection: cross cp_a, cp_b{
       bins ignored = binsof (cp_a.ignored);
@@ -78,7 +81,7 @@ module t (
       empty_cov.sample(1'(cyc / 2), 1'(cyc));
       if (cyc < 6) trans_cov.sample(7'(cyc % 3), 1'(cyc / 3));
       if (cyc == 0) begin
-        `checkr(cov.get_inst_coverage(), 20.3125);
+        `checkr(cov.get_inst_coverage(), 20.0);
         `checkr(auto_cov.get_inst_coverage(), 60.0);
       end
     end

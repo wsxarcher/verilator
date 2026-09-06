@@ -42,6 +42,7 @@ cg_binsof.guarded.high_x_either [cross]: 2
 cg_binsof.guarded.high_x_high [cross]: 1
 cg_binsof.guarded.high_x_low [cross]: 1
 cg_binsof.guarded.selected [cross]: 1
+cg_binsof.guarded.selected_one [cross]: 2
 cg_binsof.named.arrayed[0]_x_either [cross]: 2
 cg_binsof.named.arrayed[0]_x_high [cross]: 1
 cg_binsof.named.arrayed[0]_x_low [cross]: 1

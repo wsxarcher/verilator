@@ -210,22 +210,22 @@ public:
 
 class VlCoverCross final : public VlCoverpointIf {
     struct Bin final {
-        uint32_t dim;  // Selected coverpoint dimension
-        uint32_t first;  // First selected Normal bin index
-        uint32_t bins;  // Number of selected Normal bins
-        const char* name;  // Explicit bin name
-        const char* file;  // Bin declaration file
-        int line;  // Bin declaration line
-        int col;  // Bin declaration column
+        const uint32_t dim;  // Selected coverpoint dimension
+        const uint32_t first;  // First selected Normal bin index
+        const uint32_t bins;  // Number of selected Normal bins
+        const char* const namep;  // Explicit bin name
+        const char* const filep;  // Bin declaration file
+        const int line;  // Bin declaration line
+        const int col;  // Bin declaration column
         uint32_t count = 0;  // Samples matching the selection and guard
 
-        Bin(uint32_t dim, uint32_t first, uint32_t bins, const char* name, const char* file,
+        Bin(uint32_t dim, uint32_t first, uint32_t bins, const char* namep, const char* filep,
             int line, int col)
             : dim{dim}
             , first{first}
             , bins{bins}
-            , name{name}
-            , file{file}
+            , namep{namep}
+            , filep{filep}
             , line{line}
             , col{col} {}
     };
@@ -269,7 +269,7 @@ public:
     void init(const char* hier, uint32_t dims, VlCoverpoint* const* cps, const char* file,
               int line, int col);
     /// Add a single-binsof cross bin using verilation-time resolved Normal-bin indices.
-    void addBin(uint32_t dim, uint32_t first, uint32_t bins, const char* name, const char* file,
+    void addBin(uint32_t dim, uint32_t first, uint32_t bins, const char* namep, const char* filep,
                 int line, int col);
     /// Retain only automatic cross bins not selected by any explicit bin.
     void finalizeBins();
