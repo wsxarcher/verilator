@@ -6751,14 +6751,29 @@ class WidthVisitor final : public VNVisitor {
             // may change an argument's data type. Plus need them for runtime formats
             VFormatAttr formatAttr = VFormatAttr::UNSIGNED;
             const AstNodeDType* const dtypep = argp ? argp->dtypep()->skipRefp() : nullptr;
+            const AstConst* const constp = VN_CAST(argp, Const);
             const AstEnumDType* const enumDtp = formatEnumDType(argp);
             if (dtypep->isDouble()) {
                 formatAttr = VFormatAttr::DOUBLE;
             } else if (dtypep->isString()) {
                 formatAttr = VFormatAttr::STRING;
+            } else if (constp && constp->num().isNull()) {
+                formatAttr = VFormatAttr::COMPLEX;
+                AstNodeExpr* const newp
+                    = new AstConst{argp->fileline(), AstConst::String{}, "null"};
+                VL_DO_DANGLING(pushDeletep(argp), argp);
+                argp = newp;
+            } else if (nodep->exprFormat() && constp && constp->num().isFromString()) {
+                formatAttr = VFormatAttr::STRING_LITERAL;
             } else if (nodep->exprFormat() && enumDtp) {
                 formatAttr = enumDtp->isSigned() ? VFormatAttr::ENUM_SIGNED : VFormatAttr::ENUM;
-            } else if (isFormatNonNumericArg(dtypep)) {
+            } else if (nodep->exprFormat() && dtypep->isCHandle()) {
+                formatAttr = VFormatAttr::CHANDLE;
+            } else if (nodep->exprFormat() && isFormatPackedAggregate(dtypep)) {
+                formatAttr = dtypep->isSigned() ? VFormatAttr::PATTERN_SIGNED
+                                                : VFormatAttr::PATTERN_UNSIGNED;
+            } else if (isFormatNonNumericArg(dtypep)
+                       || (nodep->exprFormat() && isFormatPatternArg(dtypep))) {
                 if (const AstClassRefDType* const classRefp = VN_CAST(dtypep, ClassRefDType)) {
                     classRefp->classp()->markPrintedFrom();
                     v3Global.hasPrintedObjects(true);
@@ -8785,9 +8800,18 @@ class WidthVisitor final : public VNVisitor {
                 case 's':
                     // As with enum.name(): valid values print the mnemonic, else numeric
                     if (subargp) {
-                        if (ch == 'p'
-                            && !(isFormatZeroWidth(fmtMods) && isFormatPackedAggregate(dtypep))
-                            && isFormatPatternArg(dtypep)) {
+                        const AstConst* const stringLiteralp = VN_CAST(subargp, Const);
+                        if (ch == 'p' && stringLiteralp && stringLiteralp->num().isFromString()) {
+                            AstNodeExpr* const newp
+                                = new AstConst{subargp->fileline(), AstConst::String{},
+                                               stringLiteralp->num().toString()};
+                            subargp->replaceWith(
+                                new AstSFormatArg{subargp->fileline(), VFormatAttr::STRING, newp});
+                            VL_DO_DANGLING(pushDeletep(subargp), subargp);
+                        } else if (ch == 'p'
+                                   && !(isFormatZeroWidth(fmtMods)
+                                        && isFormatPackedAggregate(dtypep))
+                                   && isFormatPatternArg(dtypep)) {
                             wrapFormatPattern(subargp, nodep->missingArgChar());
                         } else if (AstEnumDType* const enumDtp = formatEnumDType(subargp)) {
                             wrapFormatEnum(subargp, enumDtp);

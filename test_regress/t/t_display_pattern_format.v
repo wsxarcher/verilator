@@ -145,8 +145,8 @@ module t;
   localparam string WIDE_PARAM_STRING = $sformatf("%p", WIDE_ON);
   localparam signed_mode_t INVALID_PARAM = signed_mode_t'(-33'sd2);
   localparam string INVALID_PARAM_STRING = $sformatf("%p", INVALID_PARAM);
-  localparam text_t TEXT_PARAM = "quote=\" slash=\\ bell=\a form=\f vert=\v ctrl=\001";
-  localparam string ESCAPED_PARAM_STRING = $sformatf("%p", TEXT_PARAM);
+  localparam string ESCAPED_PARAM_STRING
+      = $sformatf("%p", "quote=\" slash=\\ bell=\a form=\f vert=\v ctrl=\001");
 
   Iface iface();
   virtual Iface vif;
@@ -155,6 +155,8 @@ module t;
   int calls;
   int enum_calls;
   int object_calls;
+  int text_calls;
+  int format_calls;
 
   function automatic packed_t make_packed();
     ++calls;
@@ -169,9 +171,19 @@ module t;
     return object_value;
   endfunction
 
+  function automatic string make_text();
+    ++text_calls;
+    return $sformatf("round %0d", cyc);
+  endfunction
+
   function automatic wide_mode_t make_enum();
     ++enum_calls;
     return cyc[0] ? WIDE_OFF : WIDE_ON;
+  endfunction
+
+  function automatic string make_format();
+    ++format_calls;
+    return cyc[0] ? "%p|%p|%0d" : "%p|%0d|%0d";
   endfunction
 
   task automatic check_pattern_branches(input packed_t value, input bit odd);
@@ -236,6 +248,12 @@ module t;
   endfunction
 
   initial begin
+    string fmt;
+    string result;
+    packed_t packed_const;
+    mode_t invalid_const;
+    handle_t null_handle;
+
     `checks($sformatf("%p", 12), "12");
     `checks(PACKED_PARAM_STRING, "'{code:3, mode:MODE_ON, tail:17}");
     `checks(UNPACKED_PARAM_STRING, "'{mode:MODE_ON, text:\"param\"}");
@@ -254,22 +272,54 @@ module t;
     `checks($sformatf("%p", wide_mode_t'(95'h1_0000_0000_0000_0002)), "2");
     // It also zero-extends invalid signed 7-bit enums instead of using the signed base type.
     `checks($sformatf("%p", narrow_mode_t'(-7'sd2)), "126");
-    // Questa 2025.2 does not escape string values.
-    `checks(ESCAPED_PARAM_STRING, {"\"", TEXT_PARAM, "\""});
+    // Questa 2025.2 omits the required quotes around string literals and does not escape them.
+    `checks($sformatf("%p", "literal"), "literal");
+    `checks($sformatf("%p", ""), " ");
+    `checks(ESCAPED_PARAM_STRING, "quote=\" slash=\\ bell=\a form=\f vert=\v ctrl=\001");
 `else
     `checks($sformatf("%0p", 12), "'hc");
     `checks($sformatf("%p", wide_mode_t'(95'h1_0000_0000_0000_0002)),
             "18446744073709551618");
     `checks($sformatf("%p", narrow_mode_t'(-7'sd2)), "-2");
+    `checks($sformatf("%p", "literal"), "\"literal\"");
+    `checks($sformatf("%p", ""), "\"\"");
     `checks(ESCAPED_PARAM_STRING,
             "\"quote=\\\" slash=\\\\ bell=\\007 form=\\014 vert=\\013 ctrl=\\001\"");
 `endif
 
+    // Formats that become constant after width resolution must agree with runtime formatting.
+    fmt = "%p";
+    packed_const = PACKED_PARAM;
+    invalid_const = mode_t'(7);
+    null_handle = null;
+    `checks($sformatf("%p", null), "null");
+    `checks($sformatf(fmt, null), "null");
+    result = $sformatf(fmt, packed_const);
+    `checks(result, PACKED_PARAM_STRING);
+    result = $sformatf(fmt, null_handle);
+    `checks(result, NULL_CHANDLE_TEXT);
+    result = $sformatf(fmt, "a long literal");
+`ifdef QUESTA
+    `checks(result, "a long literal");
+`else
+    `checks(result, "\"a long literal\"");
+`endif
+    fmt = "%4d";
+    result = $sformatf(fmt, packed_const);
+    `checks(result, " 945");
+    $swriteh(result, "%p", invalid_const);
+`ifdef QUESTA
+    // As below, Questa omits the base prefix even when folding an invalid enum.
+    `checks(result, "7");
+`else
+    `checks(result, "'h7");
+`endif
   end
 
   always @(posedge clk) begin
     string escaped;
     string escaped_expected;
+    string literal_expected;
     string key_expected;
     string fmt;
     string hex_fmt;
@@ -464,18 +514,28 @@ module t;
 
     // Vary the format itself, not only its arguments, to exercise runtime formatting.
     fmt = cyc[0] ? "%p" : "%P";
+    `checks($sformatf(fmt, packed_value), packed_expected);
     `checks($sformatf(fmt, wide_mode), wide_expected);
     `checks($sformatf(fmt, narrow_mode), narrow_mode.name());
     `checks($sformatf(fmt, signed_mode), signed_expected);
     `checks($sformatf(fmt, escaped), escaped_expected);
+    `checks($sformatf(fmt, handle), NULL_CHANDLE_TEXT);
 `ifdef QUESTA
+    // The same Questa string-literal quoting bug also affects dynamic formats.
+    `checks($sformatf(fmt, "a long literal"), "a long literal");
+    literal_expected = "a\"b";
     // The invalid-enum truncation and signedness bugs also affect dynamic formats.
     `checks($sformatf(fmt, invalid_wide_mode), $sformatf("%0d", cyc + 2));
     `checks($sformatf(fmt, invalid_narrow_mode), $sformatf("%0d", 120 - cyc));
 `else
+    `checks($sformatf(fmt, "a long literal"), "\"a long literal\"");
+    literal_expected = "\"a\\\"b\"";
     `checks($sformatf(fmt, invalid_wide_mode), $sformatf("%0d", invalid_wide_mode));
     `checks($sformatf(fmt, invalid_narrow_mode), $sformatf("%0d", -cyc - 8));
 `endif
+    fmt = cyc[0] ? "%p/%h" : "%h/%p";
+    result = $sformatf(fmt, "a\"b", "a\"b");
+    `checks(result, (cyc[0] ? {literal_expected, "/612262"} : {"612262/", literal_expected}));
 
     // Both tools support enum-name %s as an extension; %h must still print the bits.
     fmt = cyc[0] ? "%s/%h" : "%h/%s";
@@ -485,6 +545,20 @@ module t;
     result = $sformatf(fmt, make_enum(), make_enum());
     `checks(result, enum_expected);
     `checkd(enum_calls, 2);
+
+    fmt = "%0p";
+    `checks($sformatf(fmt, packed_value), compact_expected);
+    fmt = "%0d";
+    `checks($sformatf(fmt, packed_value), $sformatf("%0d", packed_value));
+    fmt = "%0x";
+    `checks($sformatf(fmt, packed_value), $sformatf("%0x", packed_value));
+    fmt = "%0b";
+    `checks($sformatf(fmt, packed_value), $sformatf("%0b", packed_value));
+    fmt = cyc[0] ? "%p:%0x" : "%P:%0x";
+    `checks($sformatf(fmt, packed_value, packed_value),
+            {packed_expected, ":", $sformatf("%0x", packed_value)});
+    fmt = "%0d";
+    `checks($sformatf(fmt, signed_packed), $sformatf("%0d", signed_packed));
 
     $swrite(result, "%p", packed_value);
     `checks(result, packed_expected);
@@ -522,6 +596,15 @@ module t;
     result = $sformatf("%p", make_packed());
     `checks(result, packed_expected);
     `checkd(calls, 1);
+    text_calls = 0;
+    format_calls = 0;
+    result = $sformatf(make_format(), make_text(), make_packed(), cyc);
+    `checks(result, {$sformatf("\"round %0d\"|", cyc),
+                     (cyc[0] ? packed_expected : $sformatf("%0d", packed_value)),
+                     $sformatf("|%0d", cyc)});
+    `checkd(calls, 2);
+    `checkd(text_calls, 1);
+    `checkd(format_calls, 1);
 
     object_calls = 0;
     result = $sformatf("%p", make_object());
