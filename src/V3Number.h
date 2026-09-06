@@ -32,6 +32,7 @@
 
 class AstNode;
 class AstNodeDType;
+class AstEnumDType;
 class AstSFormatArg;
 class FileLine;
 
@@ -44,11 +45,16 @@ public:
         UNSIGNED = VL_VFORMATATTR_UNSIGNED,
         SIGNED = VL_VFORMATATTR_SIGNED,
         //
+        CHANDLE = VL_VFORMATATTR_CHANDLE,
         COMPLEX = VL_VFORMATATTR_COMPLEX,
         DOUBLE = VL_VFORMATATTR_DOUBLE,
         ENUM = VL_VFORMATATTR_ENUM,
+        ENUM_SIGNED = VL_VFORMATATTR_ENUM_SIGNED,
+        PATTERN_SIGNED = VL_VFORMATATTR_PATTERN_SIGNED,
+        PATTERN_UNSIGNED = VL_VFORMATATTR_PATTERN_UNSIGNED,
         SCOPE = VL_VFORMATATTR_SCOPE,
         STRING = VL_VFORMATATTR_STRING,
+        STRING_LITERAL = VL_VFORMATATTR_STRING_LITERAL,
         TIMEUNIT = VL_VFORMATATTR_TIMEUNIT
     };
     enum en m_e;
@@ -61,11 +67,18 @@ public:
         : m_e(static_cast<en>(_e)) {}  // Need () or GCC 4.8 false warning
     constexpr operator en() const { return m_e; }
     char ascii() const { return m_e; }
+    bool isCHandle() const { return m_e == CHANDLE; }
     bool isComplex() const { return m_e == COMPLEX; }
     bool isDouble() const { return m_e == DOUBLE; }
-    bool isEnum() const { return m_e == ENUM; }
+    bool isEnum() const { return m_e == ENUM || m_e == ENUM_SIGNED; }
+    bool isPattern() const {
+        return m_e == PATTERN_SIGNED || m_e == PATTERN_UNSIGNED || isEnum() || isStringLiteral()
+               || isCHandle();
+    }
+    bool isPatternSigned() const { return m_e == PATTERN_SIGNED || m_e == ENUM_SIGNED; }
     bool isSigned() const { return m_e == SIGNED; }
     bool isString() const { return m_e == STRING; }
+    bool isStringLiteral() const { return m_e == STRING_LITERAL; }
     bool isUnsigned() const { return m_e == UNSIGNED; }
 };
 constexpr bool operator==(const VFormatAttr& lhs, const VFormatAttr& rhs) {
@@ -650,6 +663,11 @@ public:
     string displayed(FileLine* fl, const string& vformat,
                      const VFormatAttr& formatAttr = VFormatAttr::UNSIGNED) const VL_MT_STABLE;
     static bool displayedFmtHasArg(char format, bool isScan);
+    string displayedPattern(const AstNodeDType* dtypep, char numFormat = 'd') const;
+    string displayedEnumName(const AstEnumDType* dtypep) const;
+    static string displayedPatternName(const AstNode* nodep);
+    string displayedSFormat(const AstSFormatArg* argp, const string& format,
+                            char numFormat = 'd') const;
     string emitC() const VL_MT_STABLE;
     int width() const VL_MT_SAFE { return m_data.width(); }
     int widthToFit() const;  // Minimum width that can represent this number (~== log2(num)+1)

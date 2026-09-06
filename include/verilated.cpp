@@ -2515,6 +2515,37 @@ std::string VL_TO_STRING(const std::string& obj) VL_PURE {
 std::string VL_TO_STRING_W(int words, const WDataInP obj) {
     return VL_SFORMATF_N_NX("'h%0x", 1, VL_VFORMATATTR_UNSIGNED, words * VL_EDATASIZE, obj);
 }
+static const char* vl_pattern_format(char numFormat) {
+    switch (numFormat) {
+    case 'b': return "'b%0b";
+    case 'h': return "'h%0h";
+    case 'o': return "'o%0o";
+    default: return "%0d";
+    }
+}
+std::string VL_TO_STRING_PACKED(int obits, int lsb, QData obj, bool isSigned, char numFormat) {
+    const QData value = (obj >> lsb) & VL_MASK_Q(obits);
+    const int attr = isSigned ? VL_VFORMATATTR_SIGNED : VL_VFORMATATTR_UNSIGNED;
+    if (obits <= VL_IDATASIZE) {
+        return VL_SFORMATF_N_NX(vl_pattern_format(numFormat), 1, attr, obits,
+                                static_cast<IData>(value));
+    }
+    return VL_SFORMATF_N_NX(vl_pattern_format(numFormat), 1, attr, obits, value);
+}
+std::string VL_TO_STRING_PACKED_W(int obits, int lbits, int lsb, WDataInP obj, bool isSigned,
+                                  char numFormat) {
+    if (obits <= VL_QUADSIZE) {
+        return VL_TO_STRING_PACKED(obits, 0, VL_SEL_QWII(lbits, obj, lsb, obits), isSigned,
+                                   numFormat);
+    }
+    std::vector<EData> selected(VL_WORDS_I(obits));
+    WDataOutP const selectedp = WDataOutP::external(selected.data());
+    VL_SEL_WWII(obits, lbits, selectedp, obj, lsb, obits);
+    selected.back() &= VL_MASK_E(obits);
+    return VL_SFORMATF_N_NX(vl_pattern_format(numFormat), 1,
+                            isSigned ? VL_VFORMATATTR_SIGNED : VL_VFORMATATTR_UNSIGNED, obits,
+                            selected.data());
+}
 
 std::string VL_TOLOWER_NN(const std::string& ld) VL_PURE {
     std::string result = ld;

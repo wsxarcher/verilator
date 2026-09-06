@@ -19,6 +19,7 @@
 #include "V3Number.h"
 
 #include "V3File.h"
+#include "V3String.h"
 
 #include <algorithm>
 #include <cerrno>
@@ -642,6 +643,100 @@ string V3Number::displayPad(size_t fmtsize, char pad, bool left, const string& i
     string padding;
     if (in.length() < fmtsize) padding = string(fmtsize - in.length(), pad);
     return left ? (in + padding) : (padding + in);
+}
+
+string V3Number::displayedPatternName(const AstNode* nodep) {
+    const string name = VIdProtect::protect(nodep->prettyName());
+    return !name.empty() && !std::isdigit(static_cast<unsigned char>(name[0]))
+                   && VString::isIdentifier(name)
+               ? name
+               : "\\" + name + " ";
+}
+
+string V3Number::displayedEnumName(const AstEnumDType* dtypep) const {
+    for (const AstEnumItem* itemp = dtypep->itemsp(); itemp;
+         itemp = VN_AS(itemp->nextp(), EnumItem)) {
+        const AstConst* const constp = VN_AS(itemp->valuep(), Const);
+        if (isCaseEq(constp->num())) return displayedPatternName(itemp);
+    }
+    return "";
+}
+
+string V3Number::displayedPattern(const AstNodeDType* dtypep, char numFormat) const {
+    if (const AstEnumDType* const enumDtp = VN_CAST(dtypep->skipRefToEnump(), EnumDType)) {
+        const string name = displayedEnumName(enumDtp);
+        if (!name.empty()) return name;
+    }
+    dtypep = dtypep->skipRefp();
+    if (const AstNodeUOrStructDType* const structDtp = VN_CAST(dtypep, NodeUOrStructDType)) {
+        UASSERT_OBJ(structDtp->packed(), structDtp, "Unpacked structure has packed value");
+        string result = "'{";
+        string comma;
+        for (const AstMemberDType* itemp = structDtp->membersp(); itemp;
+             itemp = VN_AS(itemp->nextp(), MemberDType)) {
+            V3Number memberNum{this, itemp->width()};
+            memberNum.opSel(*this, itemp->lsb() + itemp->width() - 1, itemp->lsb());
+            result += comma + displayedPatternName(itemp) + ":"
+                      + memberNum.displayedPattern(itemp->subDTypep(), numFormat);
+            comma = ", ";
+            if (VN_IS(structDtp, UnionDType)) break;
+        }
+        return result + "}";
+    }
+    const AstBasicDType* const basicp = dtypep->basicp();
+    if (isNull() || (basicp && basicp->isCHandle() && isEqZero())) return "null";
+    if (basicp && basicp->isString()) return displayed(dtypep, "%p", VFormatAttr::STRING);
+    if (basicp && basicp->isDouble()) return displayed(dtypep, "%p", VFormatAttr::DOUBLE);
+    if (basicp && basicp->isCHandle()) numFormat = 'h';
+    const string prefix = numFormat == 'd' ? "" : "'"s + numFormat;
+    V3Number value{this, dtypep->width()};
+    value.opAssign(*this);
+    return prefix
+           + value.displayed(dtypep, "%0"s + numFormat,
+                             dtypep->isSigned() ? VFormatAttr::SIGNED : VFormatAttr::UNSIGNED);
+}
+
+string V3Number::displayedSFormat(const AstSFormatArg* argp, const string& format,
+                                  char numFormat) const {
+    const VFormatAttr attr = argp->formatAttr();
+    if (!attr.isPattern()) return displayed(argp, format, attr);
+    const char specifier = std::tolower(format.back());
+    if (attr.isStringLiteral() && specifier == 'p')
+        return displayed(argp, format, VFormatAttr::STRING);
+    if (attr.isCHandle() && specifier == 'p')
+        return displayedPattern(argp->valueDTypep(), numFormat);
+    bool widthSet = false;
+    size_t width = 0;
+    for (const char ch : format) {
+        if (!std::isdigit(ch)) continue;
+        widthSet = true;
+        width = width * 10 + (ch - '0');
+    }
+    const bool fullPattern = specifier == 'p' && (!widthSet || width != 0);
+    string numericFormat = format;
+    if (attr.isEnum() && (specifier == 'p' || specifier == 's')) {
+        const AstEnumDType* const enumDtp
+            = VN_AS(argp->valueDTypep()->skipRefToEnump(), EnumDType);
+        const string name = displayedEnumName(enumDtp);
+        if (!name.empty()) {
+            V3Number nameNum{this};
+            nameNum.setString(name);
+            return nameNum.displayed(
+                argp, format, specifier == 'p' ? VFormatAttr::COMPLEX : VFormatAttr::STRING);
+        }
+        if (specifier == 's') {
+            numericFormat.back() = 'd';
+            if (numericFormat == "%d") numericFormat = "%0d";
+        }
+        if (fullPattern && numFormat != 'd')
+            return displayedPattern(argp->valueDTypep(), numFormat);
+    } else if (fullPattern) {
+        return displayedPattern(argp->valueDTypep(), numFormat);
+    }
+    V3Number value{this, argp->valueDTypep()->width()};
+    value.opAssign(*this);
+    return value.displayed(argp, numericFormat,
+                           attr.isPatternSigned() ? VFormatAttr::SIGNED : VFormatAttr::UNSIGNED);
 }
 
 string V3Number::displayed(const AstNode* nodep, const string& vformat,
