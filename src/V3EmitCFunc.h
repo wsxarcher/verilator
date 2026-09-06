@@ -116,10 +116,18 @@ public:
 //  Emit statements and expressions
 
 class EmitCFunc VL_NOT_FINAL : public EmitCConstInit {
+    struct ToStringPacked final {
+        const string m_value;
+        const int m_width;
+        const int m_lsb;
+    };
+
     VMemberMap m_memberMap;
     AstVarRef* m_wideTempRefp = nullptr;  // Variable that _WW macros should be setting
     std::unordered_map<AstJumpBlock*, size_t> m_labelNumbers;  // Label numbers for AstJumpBlocks
     bool m_createdScopeHash = false;  // Already created a scope hash
+    size_t m_toStringNum = 0;  // Unique number within the current %p expression
+    char m_toStringNumFormat = 'd';  // Radix for numeric elements of the current pattern
 
 protected:
     VL_DEFINE_DEBUG_FUNCTIONS;
@@ -253,6 +261,23 @@ public:
     void emitDereference(AstNode* nodep, const string& pointer);
     std::string dereferenceString(const std::string& pointer) const;
     void emitCvtPackStr(AstNode* nodep);
+    void emitToStringLiteral(const string& out, const string& text);
+    void emitToStringNumber(const AstNodeDType* dtypep, const string& value,
+                            const ToStringPacked* packedp);
+    void emitToStringEnum(const AstEnumDType* dtypep, const AstNodeDType* valueDTypep,
+                          const string& value, const string& out, const ToStringPacked* packedp,
+                          bool nameOnly = false);
+    void emitToStringStruct(const AstNodeUOrStructDType* dtypep, const string& value,
+                            const string& out, const ToStringPacked* packedp);
+    void emitToStringAssoc(const AstAssocArrayDType* dtypep, const string& value,
+                           const string& out);
+    void emitToStringWildcard(const AstWildcardArrayDType* dtypep, const string& value,
+                              const string& out);
+    void emitToStringUnpacked(const AstUnpackArrayDType* dtypep, const string& value,
+                              const string& out);
+    void emitToStringQueue(const AstNodeDType* dtypep, const string& value, const string& out);
+    void emitToStringValue(const AstNodeDType* dtypep, const string& value, const string& out,
+                           const ToStringPacked* packedp, bool dereferenceClass);
     void emitConstant(AstConst* nodep);
     void emitConstantString(const AstConst* nodep);
     void emitSetVarConstant(const string& assignString, AstConst* constp);
@@ -1520,6 +1545,7 @@ public:
             emitOpName(nodep, nodep->emitC(), nodep->lhsp(), nullptr, nullptr);
         }
     }
+    void visit(AstToStringN* nodep) override;
     void visit(AstNodeBiop* nodep) override {
         if (nodep->emitCheckMaxWords() && nodep->widthWords() > VL_MULS_MAX_WORDS) {
             nodep->v3warn(

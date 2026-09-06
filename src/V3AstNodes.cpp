@@ -3127,6 +3127,7 @@ void AstSConsRep::dumpJson(std::ostream& str) const {
 void AstSFormatArg::dump(std::ostream& str) const {
     Super::dump(str);
     str << " [" << formatAttr().ascii() << "]";
+    if (valueDTypep()) str << " valueDType=" << nodeAddr(valueDTypep());
 }
 void AstSFormatArg::dumpJson(std::ostream& str) const {
     dumpJsonGen(str);
@@ -3415,6 +3416,15 @@ void AstTimeImport::dump(std::ostream& str) const {
 }
 void AstTimeImport::dumpJson(std::ostream& str) const {
     dumpJsonStr(str, "timeunit", timeunit().ascii());
+    dumpJsonGen(str);
+}
+void AstToStringN::dump(std::ostream& str) const {
+    Super::dump(str);
+    str << " valueDType=" << nodeAddr(valueDTypep());
+    str << " numFormat=" << numFormat();
+}
+void AstToStringN::dumpJson(std::ostream& str) const {
+    dumpJsonStr(str, "numFormat", string{numFormat()});
     dumpJsonGen(str);
 }
 void AstTraceDecl::dump(std::ostream& str) const {

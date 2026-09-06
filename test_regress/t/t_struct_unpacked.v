@@ -51,10 +51,10 @@ module x;
 
     istr.m_i = 12;
     istr.m_s = "str1";
-    `checkp(istr, "'{m_i:'hc, m_s:\"str1\"}");
+    `checkp(istr, "'{m_i:12, m_s:\"str1\"}");
 
     istr = '{m_i: '1, m_s: "str2"};
-    `checkp(istr, "'{m_i:'hffff, m_s:\"str2\"}");
+    `checkp(istr, "'{m_i:65535, m_s:\"str2\"}");
 
     c = new;
     s = c.get_cstr().m_strg;

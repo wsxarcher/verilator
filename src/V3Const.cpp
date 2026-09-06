@@ -28,6 +28,7 @@
 #include "V3Const.h"
 
 #include "V3Ast.h"
+#include "V3File.h"
 #include "V3Global.h"
 #include "V3Simulate.h"
 #include "V3Stats.h"
@@ -3019,36 +3020,60 @@ class ConstVisitor final : public VNVisitor {
         VL_DO_DANGLING(pushDeletep(nodep), nodep);
         return true;
     }
+    bool formatToStringConst(AstNodeExpr* nodep, const AstNodeDType* dtypep, string& result,
+                             char numFormat) {
+        if (const AstConst* const constp = VN_CAST(nodep, Const)) {
+            result = constp->num().displayedPattern(dtypep, numFormat);
+            return true;
+        }
+        if (const AstConsPackUOrStruct* const consp = VN_CAST(nodep, ConsPackUOrStruct)) {
+            const AstNodeUOrStructDType* const structDtp
+                = VN_AS(dtypep->skipRefp(), NodeUOrStructDType);
+            result = "'{";
+            string comma;
+            for (AstConsPackMember* memberp = consp->membersp(); memberp;
+                 memberp = VN_AS(memberp->nextp(), ConsPackMember)) {
+                const AstMemberDType* const memberDtp = VN_AS(memberp->dtypep(), MemberDType);
+                string member;
+                if (!formatToStringConst(memberp->rhsp(), memberDtp->subDTypep(), member,
+                                         numFormat))
+                    return false;
+                result += comma + V3Number::displayedPatternName(memberDtp) + ":" + member;
+                comma = ", ";
+                if (VN_IS(structDtp, UnionDType)) break;
+            }
+            result += "}";
+            return true;
+        }
+        const AstInitArray* const initp = VN_CAST(nodep, InitArray);
+        if (!initp) return false;
+        // User-visible InitArray constants are fixed unpacked arrays; other aggregates
+        // retain their constructor nodes.
+        const AstUnpackArrayDType* const arrayDtp = VN_AS(dtypep->skipRefp(), UnpackArrayDType);
+        result = "'{";
+        string comma;
+        for (int index = 0; index < arrayDtp->elementsConst(); ++index) {
+            const int offset = arrayDtp->declRange().ascending()
+                                   ? index
+                                   : arrayDtp->elementsConst() - 1 - index;
+            AstNodeExpr* const valuep = initp->getIndexDefaultedValuep(offset);
+            UASSERT_OBJ(valuep, initp, "Missing array initializer element");
+            string value;
+            if (!formatToStringConst(valuep, arrayDtp->subDTypep(), value, numFormat))
+                return false;
+            result += comma + value;
+            comma = ", ";
+        }
+        result += "}";
+        return true;
+    }
     bool matchToStringNConst(AstToStringN* nodep) {
         iterateChildren(nodep);
-        if (const AstInitArray* const initp = VN_CAST(nodep->lhsp(), InitArray)) {
-            if (!(m_doExpensive || m_params)) return false;
-            const auto isConstInit
-                = [](const AstNode* const exprp, const auto& isConstInitRecurse) -> bool {
-                if (VN_IS(exprp, Const)) return true;
-                if (const AstInitItem* const itemp = VN_CAST(exprp, InitItem)) {
-                    return isConstInitRecurse(itemp->valuep(), isConstInitRecurse);
-                }
-                if (const AstInitArray* const arrayp = VN_CAST(exprp, InitArray)) {
-                    const auto itemIsConstInit
-                        = [&isConstInitRecurse](const AstNode* const itemp) -> bool {
-                        return isConstInitRecurse(itemp, isConstInitRecurse);
-                    };
-                    if (arrayp->initsp() && !arrayp->initsp()->forall(itemIsConstInit))
-                        return false;
-                    if (arrayp->defaultp()
-                        && !isConstInitRecurse(arrayp->defaultp(), isConstInitRecurse)) {
-                        return false;
-                    }
-                    return true;
-                }
-                return false;
-            };
-            if (!isConstInit(initp, isConstInit)) return false;
-        } else if (!VN_IS(nodep->lhsp(), Const)) {
+        if (!(m_doExpensive || m_params || VN_IS(nodep->lhsp(), Const))) return false;
+        string result;
+        if (!formatToStringConst(nodep->lhsp(), nodep->valueDTypep(), result, nodep->numFormat()))
             return false;
-        }
-        replaceWithSimulation(nodep);
+        replaceConstString(nodep, result);
         return true;
     }
     int operandConcatMove(const AstConcat* nodep) {
@@ -4033,7 +4058,9 @@ class ConstVisitor final : public VNVisitor {
                                       : VFormatAttr{};
                             if (VN_IS(subargp, Const)) {  // Convert it
                                 const string out
-                                    = constNumV(subargp).displayed(nodep, fmt, formatAttr);
+                                    = fargp ? constNumV(subargp).displayedSFormat(
+                                                  fargp, fmt, nodep->missingArgChar())
+                                            : constNumV(subargp).displayed(nodep, fmt, formatAttr);
                                 UINFO(9, "     DispConst: " << fmt << " -> " << out << "  for "
                                                             << subargp);
                                 // fmt = out w/ replace % with %% as it must later when

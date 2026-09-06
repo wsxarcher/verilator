@@ -450,11 +450,16 @@ using ssize_t = uint32_t;  ///< signed size_t; returned from read()
 // (...) indicates what is passed as arguments in emitted code
 #define VL_VFORMATATTR_UNSIGNED '#'  // (int widthMin, IData/VlWide/etc) Use standard format
 #define VL_VFORMATATTR_SIGNED '~'  // (int widthMin, IData/VlWide/etc) Signed number; for %d showing sign
+#define VL_VFORMATATTR_CHANDLE 'C'  // (width, number, std::string* pattern)
 #define VL_VFORMATATTR_COMPLEX '!'  // (std::string*); for non-POD; e.g. struct, requires %p typically
 #define VL_VFORMATATTR_DOUBLE 'D'  // (double); promote %p to %f
-#define VL_VFORMATATTR_ENUM 'E'  // (width, IData/QData, std::string* name); <= 64 bit enum with runtime %p/%s
+#define VL_VFORMATATTR_ENUM 'E'  // (width, number, std::string* name); unsigned enum
+#define VL_VFORMATATTR_ENUM_SIGNED 'F'  // (width, number, std::string* name); signed enum
+#define VL_VFORMATATTR_PATTERN_SIGNED 'R'  // (width, number, std::string* pattern)
+#define VL_VFORMATATTR_PATTERN_UNSIGNED 'P'  // (width, number, std::string* pattern)
 #define VL_VFORMATATTR_SCOPE 'M'  // (char* name, char* scope); for scopes
 #define VL_VFORMATATTR_STRING 'S'  // (char* name, char* scope); for scopes  // (std::string*); for %p/%s
+#define VL_VFORMATATTR_STRING_LITERAL 'L'  // (width, number, std::string* quoted literal)
 #define VL_VFORMATATTR_TIMEUNIT 'T'  // (int timeunit); timeunits passed from V3Emit to runtime
 
 //=========================================================================

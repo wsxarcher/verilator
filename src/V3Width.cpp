@@ -6658,6 +6658,47 @@ class WidthVisitor final : public VNVisitor {
                    && !VN_AS(dtypep, NodeUOrStructDType)->packed());
     }
 
+    static bool isFormatPackedAggregate(const AstNodeDType* dtypep) {
+        dtypep = dtypep->skipRefp();
+        if (const AstNodeUOrStructDType* const structDtp = VN_CAST(dtypep, NodeUOrStructDType)) {
+            return structDtp->packed();
+        }
+        return false;
+    }
+
+    static bool isFormatPatternArg(const AstNodeDType* dtypep) {
+        dtypep = dtypep->skipRefp();
+        if (VN_IS(dtypep, IfaceRefDType) || isFormatPackedAggregate(dtypep)) return true;
+        const AstBasicDType* const basicp = dtypep->basicp();
+        return basicp && (basicp->isCHandle() || basicp->isEvent());
+    }
+
+    static bool isFormatZeroWidth(const string& fmtMods) {
+        bool widthSet = false;
+        size_t width = 0;
+        for (const char mod : fmtMods) {
+            if (!std::isdigit(mod)) continue;
+            widthSet = true;
+            width = width * 10 + (mod - '0');
+        }
+        return widthSet && width == 0;
+    }
+
+    void wrapFormatPattern(AstNodeExpr* nodep, char numFormat) {
+        VNRelinker relinker;
+        nodep->unlinkFrBack(&relinker);
+        AstNodeExpr* const newp = new AstToStringN{nodep->fileline(), nodep, numFormat};
+        relinker.relink(new AstSFormatArg{nodep->fileline(), VFormatAttr::COMPLEX, newp});
+    }
+
+    void wrapFormatEnum(AstNodeExpr* nodep, const AstEnumDType* enumDtp) {
+        VNRelinker relinker;
+        nodep->unlinkFrBack(&relinker);
+        const VFormatAttr attr
+            = enumDtp->isSigned() ? VFormatAttr::ENUM_SIGNED : VFormatAttr::ENUM;
+        relinker.relink(new AstSFormatArg{nodep->fileline(), attr, nodep});
+    }
+
     void checkFormatNumericArg(AstNode* argp, char ch) {
         // IEEE 1800-2023 21.2.1.1 suggests %d of a class is illegal.
         // Howver UVM tests require %0d print unique identifier of the class.
@@ -6702,53 +6743,55 @@ class WidthVisitor final : public VNVisitor {
         while (AstNodeExpr* argp = oldExprsp) {
             oldExprsp = VN_AS(oldExprsp->nextp(), NodeExpr);
             if (oldExprsp) oldExprsp->unlinkFrBackWithNext();
+            if (VN_IS(argp, SFormatArg)) {
+                nodep->addExprsp(argp);
+                continue;
+            }
             // Need to record formatAttr's at elaboration time, as later optimizations
             // may change an argument's data type. Plus need them for runtime formats
             VFormatAttr formatAttr = VFormatAttr::UNSIGNED;
             const AstNodeDType* const dtypep = argp ? argp->dtypep()->skipRefp() : nullptr;
+            const AstConst* const constp = VN_CAST(argp, Const);
+            const AstEnumDType* const enumDtp = formatEnumDType(argp);
             if (dtypep->isDouble()) {
                 formatAttr = VFormatAttr::DOUBLE;
             } else if (dtypep->isString()) {
                 formatAttr = VFormatAttr::STRING;
-            } else if (isFormatNonNumericArg(dtypep)) {
-                const AstNodeExpr* formatTypeArgp = argp;
-                if (const AstCMethodHard* const cmethp = VN_CAST(formatTypeArgp, CMethodHard)) {
-                    if (cmethp->method() == VCMethod::ARRAY_AT) formatTypeArgp = cmethp->fromp();
-                } else if (const AstArraySel* const arselp = VN_CAST(formatTypeArgp, ArraySel)) {
-                    formatTypeArgp = arselp->fromp();
-                }
-                if (const AstVarRef* const varRefp = VN_CAST(formatTypeArgp, VarRef)) {
-                    if (AstClassRefDType* const classRefp
-                        = VN_CAST(varRefp->dtypep(), ClassRefDType)) {
-                        if (classRefp->classp()) {
-                            classRefp->classp()->markPrintedFrom();
+            } else if (constp && constp->num().isNull()) {
+                formatAttr = VFormatAttr::COMPLEX;
+                AstNodeExpr* const newp
+                    = new AstConst{argp->fileline(), AstConst::String{}, "null"};
+                VL_DO_DANGLING(pushDeletep(argp), argp);
+                argp = newp;
+            } else if (nodep->exprFormat() && constp && constp->num().isFromString()) {
+                formatAttr = VFormatAttr::STRING_LITERAL;
+            } else if (nodep->exprFormat() && enumDtp) {
+                formatAttr = enumDtp->isSigned() ? VFormatAttr::ENUM_SIGNED : VFormatAttr::ENUM;
+            } else if (nodep->exprFormat() && dtypep->isCHandle()) {
+                formatAttr = VFormatAttr::CHANDLE;
+            } else if (nodep->exprFormat() && isFormatPackedAggregate(dtypep)) {
+                formatAttr = dtypep->isSigned() ? VFormatAttr::PATTERN_SIGNED
+                                                : VFormatAttr::PATTERN_UNSIGNED;
+            } else if (isFormatNonNumericArg(dtypep)
+                       || (nodep->exprFormat() && isFormatPatternArg(dtypep))) {
+                if (const AstClassRefDType* const classRefp = VN_CAST(dtypep, ClassRefDType)) {
+                    classRefp->classp()->markPrintedFrom();
+                    v3Global.hasPrintedObjects(true);
+                } else {
+                    for (AstNodeDType* nodeDtypep = argp->dtypep()->skipRefp(); nodeDtypep;
+                         nodeDtypep = nodeDtypep->subDTypep() ? nodeDtypep->subDTypep()->skipRefp()
+                                                              : nullptr) {
+                        if (AstNodeUOrStructDType* const structp
+                            = VN_CAST(nodeDtypep, NodeUOrStructDType)) {
+                            structp->setEmitToString();
                             v3Global.hasPrintedObjects(true);
-                        }
-                    } else {
-                        AstNodeDType* nodeDtypep = varRefp->dtypep();
-                        while (nodeDtypep && nodeDtypep->subDTypep()
-                               && nodeDtypep->subDTypep()->skipRefp()) {
-                            nodeDtypep = nodeDtypep->subDTypep()->skipRefp();
-                            if (AstNodeUOrStructDType* const uOrStructDTypep
-                                = VN_CAST(nodeDtypep, NodeUOrStructDType)) {
-                                uOrStructDTypep->setEmitToString();
-                                v3Global.hasPrintedObjects(true);
-                            }
                         }
                     }
                 }
-                AstNodeExpr* const newp = new AstToStringN{argp->fileline(), argp};
+                AstNodeExpr* const newp
+                    = new AstToStringN{argp->fileline(), argp, nodep->missingArgChar()};
                 formatAttr = VFormatAttr::COMPLEX;
                 argp = newp;
-            } else if (nodep->exprFormat()) {
-                if (AstEnumDType* const enumDtp = formatEnumDType(argp)) {
-                    nodep->addExprsp(new AstSFormatArg{argp->fileline(), VFormatAttr::ENUM, argp});
-                    AstNodeExpr* const namep
-                        = enumSelect(argp->cloneTreePure(false), enumDtp, VAttrType::ENUM_NAME);
-                    nodep->addExprsp(
-                        new AstSFormatArg{namep->fileline(), VFormatAttr::STRING, namep});
-                    continue;
-                }
             }
             if (formatAttr.isUnsigned() && dtypep->isSigned()) {
                 formatAttr = VFormatAttr::SIGNED;
@@ -8707,7 +8750,7 @@ class WidthVisitor final : public VNVisitor {
                         ch = 'g';
                     } else if (dtypep->isString()) {
                         ch = 's';
-                    } else if (VN_IS(dtypep, BasicDType)) {
+                    } else if (VN_IS(dtypep, BasicDType) || dtypep->isIntegralOrPacked()) {
                         ch = nodep->missingArgChar();
                     } else {
                         ch = 'p';
@@ -8757,27 +8800,25 @@ class WidthVisitor final : public VNVisitor {
                 case 's':
                     // As with enum.name(): valid values print the mnemonic, else numeric
                     if (subargp) {
-                        if (AstEnumDType* const enumDtp = formatEnumDType(subargp)) {
-                            string fallbackFormat = "%0d";
-                            if (ch == 'p') {
-                                bool widthSet = false;
-                                size_t width = 0;
-                                for (const char mod : fmtMods) {
-                                    if (!std::isdigit(mod)) continue;
-                                    widthSet = true;
-                                    width = width * 10 + (mod - '0');
-                                }
-                                if (widthSet && width == 0) fallbackFormat = "'h%0h";
-                            }
-                            AstNodeExpr* const newp = new AstCond{
-                                subargp->fileline(), enumTestValid(subargp, enumDtp),
-                                enumSelect(subargp->cloneTreePure(false), enumDtp,
-                                           VAttrType::ENUM_NAME),
-                                new AstSFormatF{subargp->fileline(), fallbackFormat, true,
-                                                subargp->cloneTreePure(false)}};
-                            subargp->replaceWith(new AstSFormatArg{subargp->fileline(),
-                                                                   VFormatAttr::COMPLEX, newp});
+                        const AstConst* const stringLiteralp = VN_CAST(subargp, Const);
+                        if (ch == 'p' && stringLiteralp && stringLiteralp->num().isFromString()) {
+                            AstNodeExpr* const newp
+                                = new AstConst{subargp->fileline(), AstConst::String{},
+                                               stringLiteralp->num().toString()};
+                            subargp->replaceWith(
+                                new AstSFormatArg{subargp->fileline(), VFormatAttr::STRING, newp});
                             VL_DO_DANGLING(pushDeletep(subargp), subargp);
+                        } else if (ch == 'p'
+                                   && !(isFormatZeroWidth(fmtMods)
+                                        && isFormatPackedAggregate(dtypep))
+                                   && isFormatPatternArg(dtypep)) {
+                            wrapFormatPattern(subargp, nodep->missingArgChar());
+                        } else if (AstEnumDType* const enumDtp = formatEnumDType(subargp)) {
+                            wrapFormatEnum(subargp, enumDtp);
+                        } else if (ch == 'p' && nodep->missingArgChar() != 'd'
+                                   && !isFormatZeroWidth(fmtMods)
+                                   && dtypep->isIntegralOrPacked()) {
+                            wrapFormatPattern(subargp, nodep->missingArgChar());
                         }
                     }
                     argp = nextp;
@@ -8799,8 +8840,6 @@ class WidthVisitor final : public VNVisitor {
                 enumDtp = VN_CAST(varrefp->varp()->dtypep()->skipRefToEnump(), EnumDType);
             }
         }
-        // Enums > 64 bits have no name table (see enumMaxValue); format as plain numbers
-        if (enumDtp && enumDtp->width() > VL_QUADSIZE) return nullptr;
         return enumDtp;
     }
 

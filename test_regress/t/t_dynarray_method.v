@@ -24,55 +24,55 @@ module t;
     int i;
 
     d = '{1, 2, 2, 4, 3};
-    `checkp(d, "'{'h1, 'h2, 'h2, 'h4, 'h3}");
+    `checkp(d, "'{1, 2, 2, 4, 3}");
     d = {1, 2, 2, 4, 3};
-    `checkp(d, "'{'h1, 'h2, 'h2, 'h4, 'h3}");
+    `checkp(d, "'{1, 2, 2, 4, 3}");
 
     // sort/rsort with clause is the field to use for the sorting
     d.sort;
-    `checkp(d, "'{'h1, 'h2, 'h2, 'h3, 'h4}");
+    `checkp(d, "'{1, 2, 2, 3, 4}");
     d.sort with (10 - item);
-    `checkp(d, "'{'h4, 'h3, 'h2, 'h2, 'h1}");
+    `checkp(d, "'{4, 3, 2, 2, 1}");
     d.sort(x) with (10 - x);
-    `checkp(d, "'{'h4, 'h3, 'h2, 'h2, 'h1}");
+    `checkp(d, "'{4, 3, 2, 2, 1}");
     de.sort(x) with (10 - x);
     `checkp(de, "'{}");
     d.rsort;
-    `checkp(d, "'{'h4, 'h3, 'h2, 'h2, 'h1}");
+    `checkp(d, "'{4, 3, 2, 2, 1}");
     d.rsort with (10 - item);
-    `checkp(d, "'{'h1, 'h2, 'h2, 'h3, 'h4}");
+    `checkp(d, "'{1, 2, 2, 3, 4}");
     de.rsort(x) with (10 - x);
-    `checkp(d, "'{'h1, 'h2, 'h2, 'h3, 'h4}");
+    `checkp(d, "'{1, 2, 2, 3, 4}");
 
     d = '{2, 2, 4, 1, 3};
     qv = d.unique;
-    `checkp(qv, "'{'h2, 'h4, 'h1, 'h3}");
+    `checkp(qv, "'{2, 4, 1, 3}");
     qv = de.unique;
     `checkh(qv.size(), 0);
     qi = d.unique_index;
     qv.sort;
-    `checkp(qi, "'{'h0, 'h2, 'h3, 'h4}");
+    `checkp(qi, "'{0, 2, 3, 4}");
     qi = de.unique_index;
     `checkh(qi.size(), 0);
 
     d.reverse;
-    `checkp(d, "'{'h3, 'h1, 'h4, 'h2, 'h2}");
+    `checkp(d, "'{3, 1, 4, 2, 2}");
     de.reverse;
     `checkh(de.size(), 0);
     d.shuffle();
     d.sort;
-    `checkp(d, "'{'h1, 'h2, 'h2, 'h3, 'h4}");
+    `checkp(d, "'{1, 2, 2, 3, 4}");
     de.shuffle();
     `checkh(de.size(), 0);
 
     // These require an with clause or are illegal
     // TODO add a lint check that with clause is provided
     qv = d.find with (item == 2);
-    `checkp(qv, "'{'h2, 'h2}");
+    `checkp(qv, "'{2, 2}");
     qv = d.find_first with (item == 2);
-    `checkp(qv, "'{'h2}");
+    `checkp(qv, "'{2}");
     qv = d.find_last with (item == 2);
-    `checkp(qv, "'{'h2}");
+    `checkp(qv, "'{2}");
 
     qv = d.find with (item == 20);
     `checkh(qv.size, 0);
@@ -86,16 +86,16 @@ module t;
 
     qi = d.find_index with (item == 2);
     qi.sort;
-    `checkp(qi, "'{'h1, 'h2}");
+    `checkp(qi, "'{1, 2}");
     qi = d.find_first_index with (item == 2);
-    `checkp(qi, "'{'h1}");
+    `checkp(qi, "'{1}");
     qi = d.find_last_index with (item == 2);
-    `checkp(qi, "'{'h2}");
+    `checkp(qi, "'{2}");
 
     i = 2;
     qi = d.find_index with (item == i);
     qi.sort;
-    `checkp(qi, "'{'h1, 'h2}");
+    `checkp(qi, "'{1, 2}");
 
     qi = d.find_index with (item == 20);
     qi.sort;
@@ -106,12 +106,12 @@ module t;
     `checkh(qi.size, 0);
 
     qi = d.find_index with (item.index == 2);
-    `checkp(qi, "'{'h2}");
+    `checkp(qi, "'{2}");
 
     qv = d.min;
-    `checkp(qv, "'{'h1}");
+    `checkp(qv, "'{1}");
     qv = d.max;
-    `checkp(qv, "'{'h4}");
+    `checkp(qv, "'{4}");
     qv = de.min;
     `checkp(qv, "'{}");
     qv = de.max;

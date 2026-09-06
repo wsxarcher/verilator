@@ -102,6 +102,12 @@ class DeadVisitor final : public VNVisitor {
             }
         }
         if (AstNode* const subnodep = nodep->getChildDTypep()) subnodep->user1Inc();
+        if (const AstToStringN* const stringp = VN_CAST(nodep, ToStringN)) {
+            stringp->valueDTypep()->user1Inc();
+        }
+        if (const AstSFormatArg* const formatp = VN_CAST(nodep, SFormatArg)) {
+            if (formatp->valueDTypep()) formatp->valueDTypep()->user1Inc();
+        }
     }
     void checkVarRef(AstNodeVarRef* nodep) const {
         if (nodep->classOrPackagep() && m_elimCells) nodep->classOrPackagep(nullptr);

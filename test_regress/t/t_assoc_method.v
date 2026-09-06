@@ -34,10 +34,10 @@ module t;
     bit[229:0] w;
 
     q = '{10: 1, 11: 2, 12: 2, 13: 4, 14: 3};
-    `checkp(q, "'{'ha:'h1, 'hb:'h2, 'hc:'h2, 'hd:'h4, 'he:'h3}");
+    `checkp(q, "'{10:1, 11:2, 12:2, 13:4, 14:3}");
 
     qw = '{10: 1, 11: 2, 12: 2, 13: 4, 14: 3};
-    `checkp(qw, "'{'ha:'h1, 'hb:'h2, 'hc:'h2, 'hd:'h4, 'he:'h3}");
+    `checkp(qw, "'{10:1, 11:2, 12:2, 13:4, 14:3}");
 
     // NOT tested: with ... selectors
 
@@ -48,24 +48,24 @@ module t;
 
     `checkp(qe, "'{}");
     qv = q.unique;
-    `checkp(qv, "'{'h1, 'h2, 'h4, 'h3}");
+    `checkp(qv, "'{1, 2, 4, 3}");
     qv = qe.unique;
     `checkp(qv, "'{}");
 
     qwv = qw.unique;
-    `checkp(qwv, "'{'h1, 'h2, 'h4, 'h3}");
+    `checkp(qwv, "'{1, 2, 4, 3}");
     qwv = qwe.unique;
     `checkp(qwv, "'{}");
 
     qi = q.unique_index;
     qi.sort;
-    `checkp(qi, "'{'ha, 'hb, 'hd, 'he}");
+    `checkp(qi, "'{10, 11, 13, 14}");
     qi = qe.unique_index;
     `checkp(qi, "'{}");
 
     qwi = qw.unique_index;
     qwi.sort;
-    `checkp(qwi, "'{'ha, 'hb, 'hd, 'he}");
+    `checkp(qwi, "'{10, 11, 13, 14}");
     qwi = qwe.unique_index;
     `checkp(qwi, "'{}");
 
@@ -83,7 +83,7 @@ module t;
     `checkh(points_qv.size, 2);
     qi = points_q.unique_index (p) with (p.x + p.y);
     qi.sort;
-    `checkp(qi, "'{'h0, 'h1, 'h5}");
+    `checkp(qi, "'{0, 1, 5}");
 
     qi = points_qe.unique_index();
     `checkp(qi, "'{}");
@@ -92,22 +92,22 @@ module t;
     `checkh(qi.size, 3);
 
     qi = points_q.find_first_index with (item.x == 1);
-    `checkp(qi, "'{'h0}");
+    `checkp(qi, "'{0}");
     qi = points_q.find_first_index with (item.x == 10);
     `checkp(qi, "'{}");
     qi = points_q.find_last_index with (item.x == 1);
-    `checkp(qi, "'{'h5}");
+    `checkp(qi, "'{5}");
     qi = points_q.find_last_index with (item.x == 12);
     `checkp(qi, "'{}");
 
     // These require an with clause or are illegal
     // TODO add a lint check that with clause is provided
     qv = q.find with (item == 2);
-    `checkp(qv, "'{'h2, 'h2}");
+    `checkp(qv, "'{2, 2}");
     qv = q.find_first with (item == 2);
-    `checkp(qv, "'{'h2}");
+    `checkp(qv, "'{2}");
     qv = q.find_last with (item == 2);
-    `checkp(qv, "'{'h2}");
+    `checkp(qv, "'{2}");
 
     qv = q.find with (item == 20);
     `checkp(qv, "'{}");
@@ -118,11 +118,11 @@ module t;
 
     qi = q.find_index with (item == 2);
     qi.sort;
-    `checkp(qi, "'{'hb, 'hc}");
+    `checkp(qi, "'{11, 12}");
     qi = q.find_first_index with (item == 2);
-    `checkp(qi, "'{'hb}");
+    `checkp(qi, "'{11}");
     qi = q.find_last_index with (item == 2);
-    `checkp(qi, "'{'hc}");
+    `checkp(qi, "'{12}");
 
     qi = q.find_index with (item == 20);
     qi.sort;
@@ -133,21 +133,21 @@ module t;
     `checkp(qi, "'{}");
 
     qi = q.find_index with (item.index == 12);
-    `checkp(qi, "'{'hc}");
+    `checkp(qi, "'{12}");
     qi = q.find with (item.index == 12);
-    `checkp(qi, "'{'h2}");
+    `checkp(qi, "'{2}");
 
     qv = q.min;
-    `checkp(qv, "'{'h1}");
+    `checkp(qv, "'{1}");
 
     qwv = qw.min;
-    `checkp(qwv, "'{'h1}");
+    `checkp(qwv, "'{1}");
 
     points_qv = points_q.min(p) with (p.x + p.y);
     if (points_qv[0].x != 1 || points_qv[0].y != 2) $stop;
 
     qv = q.max;
-    `checkp(qv, "'{'h4}");
+    `checkp(qv, "'{4}");
     points_qv = points_q.max(p) with (p.x + p.y);
     if (points_qv[0].x != 2 || points_qv[0].y != 4) $stop;
 
@@ -297,9 +297,9 @@ module t;
     // Map method (IEEE 1800-2023 7.12.5)
     q = '{1: 100, 2: 200, 3: 300};
     qv = q.map(el) with (el / 100);
-    `checkp(qv, "'{'h1, 'h2, 'h3}");
+    `checkp(qv, "'{1, 2, 3}");
     qv = q.map(el) with (el.index * 10);
-    `checkp(qv, "'{'ha, 'h14, 'h1e}");
+    `checkp(qv, "'{10, 20, 30}");
 
     $write("*-* All Finished *-*\n");
     $finish;

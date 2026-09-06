@@ -2395,12 +2395,14 @@ class AstSFormatArg final : public AstNodeExpr {
     // used to pass to (potentially) runtime decoding of format arguments
     // PARENT: SFormatF (or next list of expressions)
     // @astgen op1 := exprp : AstNodeExpr
+    // @astgen ptr := m_valueDTypep : Optional[AstNodeDType]  // Original pattern argument type
     VFormatAttr m_formatAttr;  // How to format expression
 
 public:
     AstSFormatArg(FileLine* fl, VFormatAttr formatAttr, AstNodeExpr* exprp)
         : ASTGEN_SUPER_SFormatArg(fl)
-        , m_formatAttr{formatAttr} {
+        , m_formatAttr{formatAttr}
+        , m_valueDTypep{formatAttr.isPattern() ? exprp->dtypep() : nullptr} {
         dtypeFrom(exprp);
         this->exprp(exprp);
     }
@@ -2409,7 +2411,8 @@ public:
     void dumpJson(std::ostream& str = std::cout) const override;
     int instrCount() const override { return 0; }
     bool sameNode(const AstNode* samep) const override {
-        return formatAttr() == VN_DBG_AS(samep, SFormatArg)->formatAttr();
+        const AstSFormatArg* const sp = VN_DBG_AS(samep, SFormatArg);
+        return formatAttr() == sp->formatAttr() && valueDTypep() == sp->valueDTypep();
     }
     string verilogKwd() const override { return "$sformatarg"; }
     string emitVerilog() override { return "%l"; }
@@ -2421,6 +2424,7 @@ public:
     }
     VFormatAttr formatAttr() const { return m_formatAttr; }
     void formatAttr(const VFormatAttr& formatAttr) { m_formatAttr = formatAttr; }
+    AstNodeDType* valueDTypep() const { return m_valueDTypep; }
     static VFormatAttr formatAttrDefauled(const AstSFormatArg* nodep, const AstNodeDType* dtypep);
 };
 class AstSFormatF final : public AstNodeExpr {
@@ -6165,20 +6169,31 @@ public:
     bool sizeMattersLhs() const override { return false; }
 };
 class AstToStringN final : public AstNodeUniop {
+    // Format using the original SystemVerilog type after expression optimizations.
+    // @astgen ptr := m_valueDTypep : AstNodeDType
+    const char m_numFormat;  // Default radix of the enclosing display task
 public:
-    AstToStringN(FileLine* fl, AstNodeExpr* lhsp)
-        : ASTGEN_SUPER_ToStringN(fl, lhsp) {
+    AstToStringN(FileLine* fl, AstNodeExpr* lhsp, char numFormat = 'd')
+        : ASTGEN_SUPER_ToStringN(fl, lhsp)
+        , m_numFormat{numFormat}
+        , m_valueDTypep{lhsp->dtypep()} {
         dtypeSetString();
     }
     ASTGEN_MEMBERS_AstToStringN;
+    void dump(std::ostream& str = std::cout) const override;
+    void dumpJson(std::ostream& str = std::cout) const override;
     void numberOperate(V3Number& out, const V3Number& lhs) override { V3ERROR_NA; }
-    string emitVerilog() override { return "$sformatf(\"%p\", %l)"; }
-    string emitC() override {
-        return isWide() ? "VL_TO_STRING_W(%nw, %li)" : "VL_TO_STRING_DEREF(%li)";
+    bool sameNode(const AstNode* samep) const override {
+        const AstToStringN* const sp = VN_DBG_AS(samep, ToStringN);
+        return valueDTypep() == sp->valueDTypep() && numFormat() == sp->numFormat();
     }
+    string emitVerilog() override { return "%l"; }
+    string emitC() override { V3ERROR_NA_RETURN(""); }
     bool cleanOut() const override { return true; }
     bool cleanLhs() const override { return true; }
     bool sizeMattersLhs() const override { return false; }
+    AstNodeDType* valueDTypep() const { return m_valueDTypep; }
+    char numFormat() const { return m_numFormat; }
 };
 class AstToUpperN final : public AstNodeUniop {
     // string.toupper()

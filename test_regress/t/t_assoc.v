@@ -62,7 +62,7 @@ module t (
       `checks(k, 4'd2);
       i = a.prev(k);
       `checkh(i, 0);
-      `checkp(a, "'{'h2:\"bared\", 'h3:\"fooed\"}");
+      `checkp(a, "'{2:\"bared\", 3:\"fooed\"}");
 
       a.first(k);
       `checks(k, 4'd2);

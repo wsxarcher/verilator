@@ -62,11 +62,11 @@ module t (
   always_ff @(posedge clk) begin
     cyc <= cyc + 1;
     if (cyc == END_CYC) begin
-      `checkp(fixed_pass_q, "'{'h402, 'h404, 'h406, 'h408, 'h40a, 'h40c}");
-      `checkp(fixed_fail_q, "'{'h403, 'h405, 'h407, 'h409, 'h40b, 'h40d}");
-      `checkp(range_pass_q, "'{'h15, 'h33, 'h51, 'h6f, 'h8d, 'h263, 'h28b, 'h2b3, 'h2db}");
+      `checkp(fixed_pass_q, "'{1026, 1028, 1030, 1032, 1034, 1036}");
+      `checkp(fixed_fail_q, "'{1027, 1029, 1031, 1033, 1035, 1037}");
+      `checkp(range_pass_q, "'{21, 51, 81, 111, 141, 611, 651, 691, 731}");
       `checkp(range_fail_q,
-              "'{'h227, 'h228, 'h229, 'h22a, 'h22b, 'h22c, 'h22d, 'h22e, 'h461, 'h462, 'h463, 'h464, 'h465, 'h466, 'h467, 'h468}");
+              "'{551, 552, 553, 554, 555, 556, 557, 558, 1121, 1122, 1123, 1124, 1125, 1126, 1127, 1128}");
 
       $write("*-* All Finished *-*\n");
       $finish;

@@ -33,10 +33,10 @@ module t;
 
   initial begin
     str.el[0].val.next = 6;
-    `checkp(str, "'{el:'{'{val:'{next:'h6}}}}");
+    `checkp(str, "'{el:'{'{val:'{next:6}}}}");
 
     pstr.el[0].val.next = 6;
-    `checkp(str, "'{el:'{'{val:'{next:'h6}}}}");
+    `checkp(str, "'{el:'{'{val:'{next:6}}}}");
 
     $write("*-* All Finished *-*\n");
     $finish;

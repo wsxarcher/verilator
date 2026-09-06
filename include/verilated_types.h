@@ -231,7 +231,11 @@ extern std::string VL_TO_STRING(SData lhs);
 extern std::string VL_TO_STRING(IData lhs);
 extern std::string VL_TO_STRING(QData lhs);
 extern std::string VL_TO_STRING(double lhs);
-inline std::string VL_TO_STRING(const std::string& obj) { return "\"" + obj + "\""; }
+extern std::string VL_TO_STRING(const std::string& obj);
+extern std::string VL_TO_STRING_PACKED(int obits, int lsb, QData obj, bool isSigned,
+                                       char numFormat);
+extern std::string VL_TO_STRING_PACKED_W(int obits, int lbits, int lsb, WDataInP obj,
+                                         bool isSigned, char numFormat);
 template <std::size_t N_Words>
 inline std::string VL_TO_STRING(const VlWide<N_Words>& obj) {
     return VL_TO_STRING_W(N_Words, obj);

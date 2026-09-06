@@ -1157,7 +1157,6 @@ void _vl_vsformat(std::string& output, const std::string& format, int argc,
             // Similar code flow in V3Number::displayed
             int lbits = 0;
             void* thingp = nullptr;
-            const std::string* enump = nullptr;
             QData ld = 0;
             std::vector<EData> strwide;
             WDataInP lwp{nullptr};
@@ -1178,31 +1177,52 @@ void _vl_vsformat(std::string& output, const std::string& format, int argc,
             } else if (formatAttr == VL_VFORMATATTR_STRING) {
                 thingp = va_arg(ap, std::string*);
                 if (fmt != 'p' && fmt != 'x') fmt = 's';  // Override
-            } else if (formatAttr == VL_VFORMATATTR_ENUM) {
-                // Always <= VL_QUADSIZE; emit uses non-ENUM format for wider enums
+            } else if (formatAttr == VL_VFORMATATTR_PATTERN_SIGNED
+                       || formatAttr == VL_VFORMATATTR_PATTERN_UNSIGNED
+                       || formatAttr == VL_VFORMATATTR_ENUM
+                       || formatAttr == VL_VFORMATATTR_ENUM_SIGNED
+                       || formatAttr == VL_VFORMATATTR_CHANDLE
+                       || formatAttr == VL_VFORMATATTR_STRING_LITERAL) {
+                const bool patternSigned = formatAttr == VL_VFORMATATTR_PATTERN_SIGNED
+                                           || formatAttr == VL_VFORMATATTR_ENUM_SIGNED;
+                const bool isEnum = formatAttr == VL_VFORMATATTR_ENUM
+                                    || formatAttr == VL_VFORMATATTR_ENUM_SIGNED;
+                const bool alwaysPattern = formatAttr == VL_VFORMATATTR_CHANDLE
+                                           || formatAttr == VL_VFORMATATTR_STRING_LITERAL;
                 lbits = va_arg(ap, int);
-                ld = VL_VA_ARG_Q_(ap, lbits);
-                strwide.resize(2);
-                WDataOutP strwidep = WDataOutP::external(strwide.data());
-                VL_SET_WQ(strwidep, ld);
-                lwp = strwidep;
-                lsb = lbits - 1;
-                ++argn;  // Enum value is followed by the generated name string argument
-                static_cast<void>(va_arg(ap, int));  // VL_VFORMATATTR_STRING
-                enump = va_arg(ap, std::string*);
-                if (enump && !enump->empty()) {
-                    formatAttr = (fmt == 'p') ? VL_VFORMATATTR_COMPLEX : VL_VFORMATATTR_STRING;
-                    thingp = const_cast<std::string*>(enump);
-                } else if (fmt == 'p' && widthSet && width == 0) {
-                    output += "'h";
-                    fmt = 'h';
-                    formatAttr = VL_VFORMATATTR_UNSIGNED;
+                if (lbits <= VL_QUADSIZE) {
+                    ld = VL_VA_ARG_Q_(ap, lbits);
+                    strwide.resize(2);
+                    WDataOutP strwidep = WDataOutP::external(strwide.data());
+                    VL_SET_WQ(strwidep, ld);
+                    lwp = strwidep;
                 } else {
-                    if (fmt == 'p') width = 0;
-                    widthSet = true;
-                    fmt = 'd';
-                    formatAttr = VL_VFORMATATTR_UNSIGNED;
+                    lwp = WDataInP::external(va_arg(ap, EData*));
+                    ld = VL_SET_QW(lwp);
                 }
+                std::string* const patternp = va_arg(ap, std::string*);
+                const bool usePattern = (fmt == 'p'
+                                         && (isEnum ? !patternp->empty()
+                                                    : alwaysPattern || !(widthSet && width == 0)))
+                                        || (isEnum && fmt == 's' && !patternp->empty());
+                formatAttr = patternSigned ? VL_VFORMATATTR_SIGNED : VL_VFORMATATTR_UNSIGNED;
+                if (usePattern) {
+                    formatAttr = fmt == 'p' ? VL_VFORMATATTR_COMPLEX : VL_VFORMATATTR_STRING;
+                    thingp = patternp;
+                } else if (fmt == 'p') {
+                    if (widthSet && width == 0) {
+                        output += "'h";
+                        fmt = 'h';
+                    } else {
+                        fmt = 'd';
+                        widthSet = true;
+                        width = 0;
+                    }
+                } else if (isEnum && fmt == 's') {
+                    fmt = 'd';
+                    widthSet = true;
+                }
+                lsb = lbits - 1;
                 if (widthSet && width == 0) {
                     while (lsb && !VL_BITISSET_W(lwp, lsb)) --lsb;
                 }
@@ -1282,7 +1302,7 @@ void _vl_vsformat(std::string& output, const std::string& format, int argc,
                     output += t_tmp;
                 } else if (formatAttr == VL_VFORMATATTR_STRING) {
                     const std::string* const strp = static_cast<const std::string*>(thingp);
-                    output += '"' + *strp + '"';
+                    output += VL_TO_STRING(*strp);
                 } else if (formatAttr == VL_VFORMATATTR_COMPLEX) {
                     const std::string* const strp = static_cast<const std::string*>(thingp);
                     output += *strp;
@@ -2488,8 +2508,63 @@ std::string VL_TO_STRING(QData lhs) {
 std::string VL_TO_STRING(double lhs) {
     return VL_SFORMATF_N_NX("%g", 1, VL_VFORMATATTR_DOUBLE, lhs);
 }
+std::string VL_TO_STRING(const std::string& obj) {
+    std::string out{"\""};
+    out.reserve(obj.size() + 2);
+    for (const unsigned char ch : obj) {
+        switch (ch) {
+        case '\n': out += "\\n"; break;
+        case '\r': out += "\\r"; break;
+        case '\t': out += "\\t"; break;
+        case '"': out += "\\\""; break;
+        case '\\': out += "\\\\"; break;
+        default:
+            if (std::isprint(ch)) {
+                out += static_cast<char>(ch);
+            } else {
+                out += '\\';
+                out += static_cast<char>('0' + ((ch >> 6) & 3));
+                out += static_cast<char>('0' + ((ch >> 3) & 7));
+                out += static_cast<char>('0' + (ch & 7));
+            }
+            break;
+        }
+    }
+    return out + '"';
+}
 std::string VL_TO_STRING_W(int words, const WDataInP obj) {
     return VL_SFORMATF_N_NX("'h%0x", 1, VL_VFORMATATTR_UNSIGNED, words * VL_EDATASIZE, obj);
+}
+static const char* vl_pattern_format(char numFormat) {
+    switch (numFormat) {
+    case 'b': return "'b%0b";
+    case 'h': return "'h%0h";
+    case 'o': return "'o%0o";
+    default: return "%0d";
+    }
+}
+std::string VL_TO_STRING_PACKED(int obits, int lsb, QData obj, bool isSigned, char numFormat) {
+    const QData value = (obj >> lsb) & VL_MASK_Q(obits);
+    const int attr = isSigned ? VL_VFORMATATTR_SIGNED : VL_VFORMATATTR_UNSIGNED;
+    if (obits <= VL_IDATASIZE) {
+        return VL_SFORMATF_N_NX(vl_pattern_format(numFormat), 1, attr, obits,
+                                static_cast<IData>(value));
+    }
+    return VL_SFORMATF_N_NX(vl_pattern_format(numFormat), 1, attr, obits, value);
+}
+std::string VL_TO_STRING_PACKED_W(int obits, int lbits, int lsb, WDataInP obj, bool isSigned,
+                                  char numFormat) {
+    if (obits <= VL_QUADSIZE) {
+        return VL_TO_STRING_PACKED(obits, 0, VL_SEL_QWII(lbits, obj, lsb, obits), isSigned,
+                                   numFormat);
+    }
+    std::vector<EData> selected(VL_WORDS_I(obits));
+    WDataOutP const selectedp = WDataOutP::external(selected.data());
+    VL_SEL_WWII(obits, lbits, selectedp, obj, lsb, obits);
+    selected.back() &= VL_MASK_E(obits);
+    return VL_SFORMATF_N_NX(vl_pattern_format(numFormat), 1,
+                            isSigned ? VL_VFORMATATTR_SIGNED : VL_VFORMATATTR_UNSIGNED, obits,
+                            selected.data());
 }
 
 std::string VL_TOLOWER_NN(const std::string& ld) VL_PURE {

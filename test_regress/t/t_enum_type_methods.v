@@ -14,7 +14,7 @@ module t (
     input clk
 );
 
-  typedef enum [3:0] {
+  typedef enum logic [3:0] {
                 E01 = 1,
                 E03 = 3,
                 E04 = 4
@@ -73,7 +73,7 @@ module t (
     mystr.m_a = E03;
     mystr.m_b = E04;
     s = $sformatf("%p", mystr);
-    `checks(s, "'{m_a:'h3, m_b:'h4}");
+    `checks(s, "'{m_a:E03, m_b:E04}");
   end
 
   localparam THREE = 3;
