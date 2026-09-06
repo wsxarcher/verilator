@@ -285,6 +285,31 @@ void EmitCFunc::emitToStringEnum(const AstEnumDType* dtypep, const AstNodeDType*
     puts("\n");
 }
 
+void EmitCFunc::emitToStringStruct(const AstNodeUOrStructDType* dtypep, const string& value,
+                                   const string& out, const ToStringPacked* packedp) {
+    const ToStringPacked rootPacked{value, dtypep->width(), 0};
+    const ToStringPacked* const effectivePackedp
+        = dtypep->packed() ? (packedp ? packedp : &rootPacked) : nullptr;
+    emitToStringLiteral(out, "'{");
+    bool first = true;
+    for (const AstMemberDType* itemp = dtypep->membersp(); itemp;
+         itemp = VN_AS(itemp->nextp(), MemberDType)) {
+        if (!first) emitToStringLiteral(out, ", ");
+        emitToStringLiteral(out, V3Number::displayedPatternName(itemp) + ":");
+        if (effectivePackedp) {
+            const ToStringPacked memberPacked{effectivePackedp->m_value, effectivePackedp->m_width,
+                                              effectivePackedp->m_lsb + itemp->lsb()};
+            emitToStringValue(itemp->subDTypep(), value, out, &memberPacked, false);
+        } else {
+            emitToStringValue(itemp->subDTypep(), "(" + value + ")." + itemp->nameProtect(), out,
+                              nullptr, false);
+        }
+        first = false;
+        if (VN_IS(dtypep, UnionDType)) break;
+    }
+    emitToStringLiteral(out, "}");
+}
+
 void EmitCFunc::emitToStringValue(const AstNodeDType* dtypep, const string& value,
                                   const string& out, const ToStringPacked* packedp,
                                   bool dereferenceClass) {
@@ -293,6 +318,11 @@ void EmitCFunc::emitToStringValue(const AstNodeDType* dtypep, const string& valu
         return;
     }
     dtypep = dtypep->skipRefp();
+
+    if (const AstNodeUOrStructDType* const structDtp = VN_CAST(dtypep, NodeUOrStructDType)) {
+        emitToStringStruct(structDtp, value, out, packedp);
+        return;
+    }
 
     if (VN_IS(dtypep, ClassRefDType)) {
         puts(out + (dereferenceClass ? " += VL_TO_STRING_DEREF((" : " += VL_TO_STRING((") + value
@@ -319,6 +349,24 @@ void EmitCFunc::emitToStringValue(const AstNodeDType* dtypep, const string& valu
     puts(out + " += ");
     emitToStringNumber(dtypep, value, packedp);
     puts(";\n");
+}
+
+void EmitCFunc::visit(AstToStringN* nodep) {
+    if (!nodep->valueDTypep()->skipRefp()->isIntegralOrPacked()) {
+        AstNodeUniop* const unopp = nodep;
+        visit(unopp);
+        return;
+    }
+    VL_RESTORER(m_toStringNum);
+    VL_RESTORER(m_toStringNumFormat);
+    m_toStringNum = 0;
+    m_toStringNumFormat = nodep->numFormat();
+    putns(nodep, "([&]() {\n");
+    puts("const auto& __Vvalue = ");
+    iterateAndNextConstNull(nodep->lhsp());
+    puts(";\nstd::string __Vout;\n");
+    emitToStringValue(nodep->valueDTypep(), "__Vvalue", "__Vout", nullptr, true);
+    puts("return __Vout;\n}())");
 }
 
 bool EmitCFunc::displayEmitHeader(AstNode* nodep) {

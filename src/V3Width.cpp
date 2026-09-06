@@ -6658,6 +6658,32 @@ class WidthVisitor final : public VNVisitor {
                    && !VN_AS(dtypep, NodeUOrStructDType)->packed());
     }
 
+    static bool isFormatPackedAggregate(const AstNodeDType* dtypep) {
+        dtypep = dtypep->skipRefp();
+        if (const AstNodeUOrStructDType* const structDtp = VN_CAST(dtypep, NodeUOrStructDType)) {
+            return structDtp->packed();
+        }
+        return false;
+    }
+
+    static bool isFormatZeroWidth(const string& fmtMods) {
+        bool widthSet = false;
+        size_t width = 0;
+        for (const char mod : fmtMods) {
+            if (!std::isdigit(mod)) continue;
+            widthSet = true;
+            width = width * 10 + (mod - '0');
+        }
+        return widthSet && width == 0;
+    }
+
+    void wrapFormatPattern(AstNodeExpr* nodep, char numFormat) {
+        VNRelinker relinker;
+        nodep->unlinkFrBack(&relinker);
+        AstNodeExpr* const newp = new AstToStringN{nodep->fileline(), nodep, numFormat};
+        relinker.relink(new AstSFormatArg{nodep->fileline(), VFormatAttr::COMPLEX, newp});
+    }
+
     void wrapFormatEnum(AstNodeExpr* nodep, const AstEnumDType* enumDtp) {
         VNRelinker relinker;
         nodep->unlinkFrBack(&relinker);
@@ -8713,7 +8739,7 @@ class WidthVisitor final : public VNVisitor {
                         ch = 'g';
                     } else if (dtypep->isString()) {
                         ch = 's';
-                    } else if (VN_IS(dtypep, BasicDType)) {
+                    } else if (VN_IS(dtypep, BasicDType) || dtypep->isIntegralOrPacked()) {
                         ch = nodep->missingArgChar();
                     } else {
                         ch = 'p';
@@ -8763,8 +8789,15 @@ class WidthVisitor final : public VNVisitor {
                 case 's':
                     // As with enum.name(): valid values print the mnemonic, else numeric
                     if (subargp) {
-                        if (AstEnumDType* const enumDtp = formatEnumDType(subargp)) {
+                        if (ch == 'p' && !isFormatZeroWidth(fmtMods)
+                            && isFormatPackedAggregate(dtypep)) {
+                            wrapFormatPattern(subargp, nodep->missingArgChar());
+                        } else if (AstEnumDType* const enumDtp = formatEnumDType(subargp)) {
                             wrapFormatEnum(subargp, enumDtp);
+                        } else if (ch == 'p' && nodep->missingArgChar() != 'd'
+                                   && !isFormatZeroWidth(fmtMods)
+                                   && dtypep->isIntegralOrPacked()) {
+                            wrapFormatPattern(subargp, nodep->missingArgChar());
                         }
                     }
                     argp = nextp;

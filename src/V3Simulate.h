@@ -418,10 +418,12 @@ private:
         }
     }
 
-    string toStringRecurse(AstNodeExpr* nodep) {
+    string toStringRecurse(AstNodeExpr* nodep, const AstNodeDType* valueDTypep = nullptr,
+                           char numFormat = 'd') {
         // Return string representation, or clearOptimizable
         const AstNodeExpr* const valuep = fetchValue(nodep);
         if (const AstConst* const avaluep = VN_CAST(valuep, Const)) {
+            if (valueDTypep) return avaluep->num().displayedPattern(valueDTypep, numFormat);
             return "'h"s + avaluep->num().displayed(nodep, "%0x");
         }
         if (const AstInitArray* const avaluep = VN_CAST(valuep, InitArray)) {
@@ -1353,7 +1355,9 @@ private:
         checkNodeInfo(nodep);
         iterateChildrenConst(nodep);
         if (m_checkOnly || !optimizable()) return;
-        const std::string result = toStringRecurse(nodep->lhsp());
+        const AstNodeDType* const dtypep = nodep->valueDTypep()->skipRefp();
+        const std::string result = toStringRecurse(
+            nodep->lhsp(), dtypep->isIntegralOrPacked() ? dtypep : nullptr, nodep->numFormat());
         if (!optimizable()) return;
         AstConst* const resultConstp = new AstConst{nodep->fileline(), AstConst::String{}, result};
         setValue(nodep, resultConstp);

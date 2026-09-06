@@ -267,6 +267,8 @@ public:
     void emitToStringEnum(const AstEnumDType* dtypep, const AstNodeDType* valueDTypep,
                           const string& value, const string& out, const ToStringPacked* packedp,
                           bool nameOnly = false);
+    void emitToStringStruct(const AstNodeUOrStructDType* dtypep, const string& value,
+                            const string& out, const ToStringPacked* packedp);
     void emitToStringValue(const AstNodeDType* dtypep, const string& value, const string& out,
                            const ToStringPacked* packedp, bool dereferenceClass);
     void emitConstant(AstConst* nodep);
@@ -1536,6 +1538,7 @@ public:
             emitOpName(nodep, nodep->emitC(), nodep->lhsp(), nullptr, nullptr);
         }
     }
+    void visit(AstToStringN* nodep) override;
     void visit(AstNodeBiop* nodep) override {
         if (nodep->emitCheckMaxWords() && nodep->widthWords() > VL_MULS_MAX_WORDS) {
             nodep->v3warn(

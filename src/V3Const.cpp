@@ -3021,6 +3021,13 @@ class ConstVisitor final : public VNVisitor {
     }
     bool matchToStringNConst(AstToStringN* nodep) {
         iterateChildren(nodep);
+        if (nodep->valueDTypep()->skipRefp()->isIntegralOrPacked()) {
+            const AstConst* const constp = VN_CAST(nodep->lhsp(), Const);
+            if (!constp) return false;
+            replaceConstString(
+                nodep, constp->num().displayedPattern(nodep->valueDTypep(), nodep->numFormat()));
+            return true;
+        }
         if (const AstInitArray* const initp = VN_CAST(nodep->lhsp(), InitArray)) {
             if (!(m_doExpensive || m_params)) return false;
             const auto isConstInit
