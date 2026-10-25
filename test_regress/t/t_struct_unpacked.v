@@ -37,6 +37,11 @@ module x;
     string m_s;
   } istr_t;
 
+  typedef struct {
+    byte b[2];
+    logic [2:0] n;
+  } bytes_t;
+
   notembedded_t p;
   embedded_t t[1:0];
   istr_t istr;
@@ -55,6 +60,15 @@ module x;
 
     istr = '{m_i: '1, m_s: "str2"};
     `checkp(istr, "'{m_i:'hffff, m_s:\"str2\"}");
+
+    begin
+      // Pattern of an array member with run-time values
+      bytes_t bytes;
+      logic [15:0] v;
+      v = $test$plusargs("t_struct_unpacked_alt") ? 16'h0 : 16'h1234;
+      bytes = '{b: '{v[15:8], v[7:0]}, n: v[2:0]};
+      `checkp(bytes, "'{b:'{'h12, 'h34}, n:'h4}");
+    end
 
     c = new;
     s = c.get_cstr().m_strg;

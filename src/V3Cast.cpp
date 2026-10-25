@@ -172,6 +172,14 @@ class CastVisitor final : public VNVisitor {
         ensureLower32Cast(nodep);
         nodep->user1(1);
     }
+    void visit(AstConsArray* nodep) override {
+        iterateChildren(nodep);
+        const AstNodeDType* const elemDtp = nodep->dtypep()->skipRefp()->subDTypep();
+        for (AstConsArrayItem* itemp = nodep->itemsp(); itemp;
+             itemp = VN_AS(itemp->nextp(), ConsArrayItem)) {
+            ensureCastValue(itemp->valuep(), elemDtp);
+        }
+    }
     void visit(AstConsAssoc* nodep) override {
         iterateChildren(nodep);
         if (nodep->defaultp()) {

@@ -189,6 +189,8 @@ class SubstValidVisitor final : public VNVisitorConst {
         if (!m_valid) return;
         iterateChildrenConst(nodep);
     }
+    // An item of a constructed value, e.g. from a cast
+    void visit(AstNodeConsItem* nodep) override { iterateChildrenConst(nodep); }
 
     void visit(AstNode* nodep) override { nodep->v3fatalSrc("Non AstNodeExpr under AstNodeExpr"); }
 
